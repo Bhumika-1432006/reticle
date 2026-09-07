@@ -1,4 +1,5 @@
 import {
+  CONSOLE_ATTACH_NOTE,
   EventType,
   PredicateKind,
   StreamDirection,
@@ -680,7 +681,19 @@ export function evalConsole(
       };
     }
     return 0 === matching.length
-      ? { pass: true, evidence: { absent: true } }
+      ? {
+          pass: true,
+          evidence: {
+            absent: true,
+            // Only when the window starts at attach AND nothing came through at all. An entry
+            // anywhere in the window proves the channel reaches this document, which is the case
+            // the caveat's wording would misdescribe; a window an action opened has `since > 0` and
+            // was fully observed. Costs nothing on every other pass, which is most of them.
+            ...(0 === since && 0 === matches.length
+              ? { unobservedBefore: CONSOLE_ATTACH_NOTE }
+              : {}),
+          },
+        }
       : {
           pass: false,
           failureReason:

@@ -6,6 +6,7 @@ import { noteEmptyRead } from './observed-nothing.js';
 import { z } from 'zod';
 import { aliasParam } from './alias-args.js';
 import {
+  CONSOLE_ATTACH_NOTE,
   CONSOLE_LEVELS,
   ReticleCommand,
   DEFAULT_ASSERT_TIMEOUT_MS,
@@ -737,7 +738,7 @@ export const OBSERVE_TOOLS: ToolDef[] = [
             ? { logs, total: matched.length, droppedOldest, ...buffer }
             : { logs, ...buffer },
           'logs',
-          { noun: 'console lines' },
+          { noun: 'console lines', caveat: CONSOLE_ATTACH_NOTE },
         ),
       );
     },
