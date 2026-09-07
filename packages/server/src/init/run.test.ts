@@ -24,7 +24,7 @@ interface MemoryIo extends InitIo {
 const HOME = '/home/u';
 
 interface MemoryOpts {
-  execOk?: boolean;
+  execOk?: boolean | ((command: string, args: readonly string[]) => boolean);
   claudeAvailable?: boolean;
   mcpExists?: boolean;
   cursor?: boolean;
@@ -122,7 +122,7 @@ function memoryIo(
     scoped: (rel) => memoryIo(files, opts, key(rel), sinks),
     exec: (command, args) => {
       execCalls.push({ command, args });
-      return execOk;
+      return 'function' === typeof execOk ? execOk(command, args) : execOk;
     },
     probe: (_command, args) => (args.includes('get') ? mcpExists : claudeAvailable),
     print: (l) => lines.push(l),
@@ -1188,5 +1188,54 @@ describe('runInit honours --url on the package-manager preflight', () => {
       io.lines.join('\n'),
       'the message names --url as the escape, so --url must be one',
     ).not.toContain('is not installed on this machine');
+  });
+});
+
+/**
+ * The retry ladder stops at the first rung that works.
+ *
+ * It is ordered by how much each attempt gives up — `--legacy-peer-deps` keeps the version pin and
+ * relaxes only peer resolution; the unpinned attempt gives up the pin, which is the thing that keeps
+ * SDK and daemon in step. Running a later, weaker rung after an earlier one already produced a
+ * working tree would throw away the pin for no reason and then report having done so.
+ */
+describe('the install retry ladder', () => {
+  const CRA_APP = {
+    'package.json': JSON.stringify({
+      dependencies: { react: '^18', 'react-scripts': '5.0.1' },
+    }),
+    'package-lock.json': '{}',
+    'src/index.tsx': 'import React from "react";\n',
+  };
+  const installArgs = (io: ReturnType<typeof memoryIo>): string[][] =>
+    io.execCalls.filter((c) => 'npm' === c.command).map((c) => [...c.args]);
+
+  it('retries with --legacy-peer-deps when the pinned install fails, and stops there', () => {
+    // ERESOLVE: the first attempt fails, the peer-relaxed one succeeds. Exactly the CRA report.
+    const io = memoryIo(CRA_APP, {
+      execOk: (command, args) => 'npm' !== command || args.includes('--legacy-peer-deps'),
+    });
+    runInit({ ...OPTS, install: true }, io);
+    const attempts = installArgs(io);
+    expect(attempts.length, 'the first attempt plus one retry, and no more').toBe(2);
+    expect(attempts[1]).toContain('--legacy-peer-deps');
+    expect(
+      attempts.some((a) => a.some((x) => x.startsWith('@reticlehq/') && !x.includes('@', 1))),
+      'the unpinned rung must not run once peers-relaxed succeeded',
+    ).toBe(false);
+  });
+
+  it('falls through to the unpinned attempt when relaxing peers does not help', () => {
+    const io = memoryIo(CRA_APP, { execOk: (command) => 'npm' !== command });
+    runInit({ ...OPTS, install: true }, io);
+    const attempts = installArgs(io);
+    expect(attempts.length, 'pinned, peers-relaxed, then unpinned').toBe(3);
+    expect(attempts[2]).not.toContain('--legacy-peer-deps');
+  });
+
+  it('does not retry at all when the first install works', () => {
+    const io = memoryIo(CRA_APP, { execOk: true });
+    runInit({ ...OPTS, install: true }, io);
+    expect(installArgs(io).length).toBe(1);
   });
 });

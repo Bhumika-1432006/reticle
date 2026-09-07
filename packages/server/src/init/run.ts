@@ -734,14 +734,15 @@ function applyEffects(
       // should: this is a SECOND full package-manager run, and until it had its own span 1.6 of
       // init's 2.3 seconds simply vanished — the span above accounted for the first attempt and
       // nothing accounted for this one.
-      const retry = s.retry;
-      if (
-        retry !== undefined &&
+      // Walked in order, cheapest concession first, and STOPS at the first success — a later,
+      // weaker attempt must never run once an earlier one has already produced a working tree.
+      const succeeded = (s.retries ?? []).find((retry) =>
         spanSync('init.exec.retry', { target: s.target, command: retry.command }, () =>
           io.exec(retry.command, retry.args),
-        )
-      ) {
-        degraded.set(s.target, retry.note);
+        ),
+      );
+      if (succeeded !== undefined) {
+        degraded.set(s.target, succeeded.note);
         continue;
       }
       // Verify, don't re-run: give the install step itself the same sdkPackagesPresent benefit
