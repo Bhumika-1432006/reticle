@@ -234,24 +234,70 @@ export interface ReticleVitePluginOptions {
   onWarn?: (message: string) => void;
 }
 
+/**
+ * The slice of Vite's `UserConfig` the `config` hook reads. Everything is optional AND nullable
+ * because that is what Vite declares — a stand-in that is narrower than the real value is not a
+ * looser type, it is a stricter one, and it makes the whole plugin unassignable to `Plugin`.
+ */
+export interface ViteUserConfigLike {
+  optimizeDeps?:
+    | {
+        include?: string[] | undefined;
+        /** Whichever key the app used — the plugin reads both and writes the one this Vite wants. */
+        esbuildOptions?: Record<string, unknown> | undefined;
+        rolldownOptions?: Record<string, unknown> | undefined;
+      }
+    | undefined;
+  define?: Record<string, unknown> | undefined;
+  root?: string | undefined;
+  /**
+   * The app's own watcher config. `watch` is nullable because `null` is how a config switches the
+   * watcher off, and `ignored` is `unknown` because Vite's `AnymatchMatcher` is not an array — it is
+   * a string, a RegExp, a predicate function, or an array of those. Typing it as an array here is
+   * the narrowing that made the whole plugin unassignable to Vite's `Plugin`, and it also invited a
+   * runtime defect: see `mergeIgnored`.
+   */
+  server?: { watch?: { ignored?: unknown } | null | undefined } | undefined;
+}
+
+/**
+ * Append our journal pattern to whatever the app already ignored, without assuming it is an array.
+ *
+ * Vite's `ignored` is `AnymatchMatcher`, so `watch: { ignored: '**\/fixtures/**' }` is a legal
+ * config. Spreading that string would explode it into one pattern PER CHARACTER — every one of
+ * which matches nothing, so the app's own exclusion is silently dropped and no error is raised. A
+ * function matcher is worse: it is not iterable at all, so the spread throws at config time and
+ * takes the dev server down, blaming the last plugin to touch the config.
+ */
+function mergeIgnored(existing: unknown, ours: RegExp): WatchPattern[] {
+  if (undefined === existing || null === existing) return [ours];
+  const listed: unknown[] = Array.isArray(existing) ? existing : [existing];
+  // Filtered rather than cast: an entry that is none of the three legal matcher shapes could never
+  // have excluded anything, so dropping it loses nothing and keeps the return honest without `any`.
+  return [...listed.filter(isWatchPattern), ours];
+}
+
+/** Vite's `AnymatchPattern`, restated so the return type needs no cast. */
+type WatchPattern = string | RegExp | ((path: string) => boolean);
+
+function isWatchPattern(value: unknown): value is WatchPattern {
+  return 'string' === typeof value || value instanceof RegExp || 'function' === typeof value;
+}
+
 /** Structural Vite plugin shape — avoids a hard dependency on `vite` while staying assignable to its `Plugin`. */
 export interface ReticleVitePlugin {
   name: string;
   /**
    * Vite's `config` hook. Used to declare the SDK's CJS runtime deps for pre-bundling — see the
    * implementation for why omitting them makes the whole SDK fail to load on linked setups.
+   *
+   * METHOD syntax, not a property, and every field it reads is optional-and-nullable. Both halves
+   * are load-bearing, and both are the contravariance trap this file's sibling test documents:
+   * a property's parameter is checked strictly, so a narrow stand-in REJECTS the wider `UserConfig`
+   * Vite actually passes. `server.watch` is where it bit — Vite types it `WatchOptions | null`,
+   * `null` being how a config turns the watcher off, and SvelteKit's template does exactly that.
    */
-  config?: (config: {
-    optimizeDeps?: {
-      include?: string[];
-      /** Whichever key the app used — the plugin reads both and writes the one this Vite wants. */
-      esbuildOptions?: Record<string, unknown>;
-      rolldownOptions?: Record<string, unknown>;
-    };
-    define?: Record<string, string>;
-    root?: string;
-    server?: { watch?: { ignored?: (string | RegExp)[] } };
-  }) => {
+  config?(config: ViteUserConfigLike): {
     optimizeDeps: {
       include: string[];
       // Either `esbuildOptions` or `rolldownOptions`, chosen from the installed Vite's major — v7
@@ -260,7 +306,7 @@ export interface ReticleVitePlugin {
       [optionsKey: string]: unknown;
     };
     define: Record<string, string>;
-    server: { watch: { ignored: (string | RegExp)[] } };
+    server: { watch: { ignored: WatchPattern[] } };
   };
   /** Absent in desktop mode, where the plugin must also run for `vite build`. */
   apply?: 'serve';
@@ -678,18 +724,7 @@ export function reticle(options: ReticleVitePluginOptions = {}): ReticleVitePlug
      * second accessibility engine, so keeping those names would make Vite pre-bundle packages the
      * app may not have and blame Reticle for a false `Failed to resolve dependency` warning.
      */
-    config(config: {
-      optimizeDeps?: {
-        include?: string[];
-        esbuildOptions?: Record<string, unknown>;
-        rolldownOptions?: Record<string, unknown>;
-      };
-      define?: Record<string, string>;
-      /** Vite's UserConfig root; undefined means the cwd. `configResolved` runs too late for this. */
-      root?: string;
-      /** The app's own watcher config; its `ignored` list is preserved, never replaced. */
-      server?: { watch?: { ignored?: (string | RegExp)[] } };
-    }) {
+    config(config: ViteUserConfigLike) {
       // Everything below asks what the APP has installed, so every lookup is rooted here and never
       // at the plugin's own location. Vite defaults an omitted root to the cwd; so do we.
       const appRoot = config.root ?? process.cwd();
@@ -723,7 +758,7 @@ export function reticle(options: ReticleVitePluginOptions = {}): ReticleVitePlug
         // Appends to the app's list rather than replacing it, so nothing it already excluded is lost.
         server: {
           watch: {
-            ignored: [...(config.server?.watch?.ignored ?? []), JOURNAL_IGNORE],
+            ignored: mergeIgnored(config.server?.watch?.ignored, JOURNAL_IGNORE),
           },
         },
         // Expose the daemon's pairing token to hand-written connects in the same Vite app. The
