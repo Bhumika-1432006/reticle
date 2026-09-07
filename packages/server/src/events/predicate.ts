@@ -551,11 +551,40 @@ function predicateSince(predicate: Predicate): number {
  * Idempotent, and a more specific `inconclusive` (unreadable locator, superseded window) is never
  * overwritten.
  */
-function annotateThrottledMiss(session: PredicateSession, result: EvalResult): EvalResult {
+function annotateThrottledMiss(
+  session: PredicateSession,
+  predicate: Predicate,
+  result: EvalResult,
+): EvalResult {
   if (result.pass) return result;
   if (true !== session.throttled?.()) return result;
   if (result.inconclusive !== undefined) return result;
+  if (failureRestsOnSeeing(predicate)) return result;
   return { ...result, inconclusive: THROTTLED_STARVED_NOTE };
+}
+
+/**
+ * Does this predicate FAIL by having seen something, rather than by not having seen it?
+ *
+ * The starved-tab caveat only applies to a negative reading. Throttling can stop the tab rendering,
+ * so "I did not find it" may mean "I could not look" — but nothing about a starved tab conjures
+ * elements that were not there, so "I found 13 of them" is as true on a throttled tab as anywhere.
+ * An `absent: true` predicate inverts exactly that: its failure IS the positive observation.
+ *
+ * Getting this wrong understated real product failures. An absence assertion that matched a
+ * framework debug page's `ProgrammingError` heading came back `unknown`, and `unknown` is what an
+ * agent re-drives or walks away from — so the proof it was holding never reached anybody.
+ *
+ * `not` flips the polarity again, and nests, so this recurses rather than checking one level.
+ * Composites (`allOf` / `anyOf`) deliberately fall through to `false`: a composite fails for a
+ * reason this cannot name, and keeping the caveat is the conservative half of the trade — an
+ * over-cautious `unknown` costs a re-drive, a missing one costs a wrong verdict.
+ */
+function failureRestsOnSeeing(predicate: Predicate): boolean {
+  if (PredicateKind.NOT === predicate.kind) return !failureRestsOnSeeing(predicate.predicate);
+  if ('absent' in predicate && true === predicate.absent) return true;
+  // `count: 0` is absence written as arithmetic, and fails the same way: by matching something.
+  return 'count' in predicate && 0 === predicate.count;
 }
 
 export async function evaluatePredicate(
@@ -566,6 +595,7 @@ export async function evaluatePredicate(
 ): Promise<EvalResult> {
   return annotateThrottledMiss(
     session,
+    predicate,
     await evaluatePredicateRaw(session, predicate, since, diagnose),
   );
 }
@@ -941,7 +971,7 @@ export function waitForPredicate(
           // assert. So the highest-value localization signal was computed and then thrown away exactly
           // on the failure path where it matters, no matter what the schema declared.
           finish(
-            annotateThrottledMiss(session, {
+            annotateThrottledMiss(session, predicate, {
               ...r,
               pass: false,
               failureReason: r.failureReason ?? 'timed out waiting for predicate',

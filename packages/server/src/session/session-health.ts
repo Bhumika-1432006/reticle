@@ -1,4 +1,9 @@
-import { BrowserBrand, BUFFER_EVICTION_WARNING, THROTTLED_WARNING } from '@reticlehq/core';
+import {
+  BrowserBrand,
+  BUFFER_EVICTION_WARNING,
+  THROTTLED_STARVED_NOTE,
+  THROTTLED_WARNING,
+} from '@reticlehq/core';
 import type { Session } from './session.js';
 
 /**
@@ -78,13 +83,22 @@ const STARVED_WAIT_NOTE =
  * Suffix the starvation note onto a FAILED predicate verdict when the tab is throttled. A pass is
  * returned untouched — starvation is context for a failure, not a reason to doubt a hold. Pure and
  * generic over the verdict shape so assert/wait_for/act_and_wait share one rule.
+ *
+ * The sentence FOLLOWS the field, and does not decide for itself. `annotateThrottledMiss`
+ * (predicate.ts) owns the question of whether this failure was reached by not having seen
+ * something, which is the only reading a starved tab casts doubt on; it stamps
+ * `THROTTLED_STARVED_NOTE` when it was. Deciding again here got two answers to one question:
+ * an `absent: true` assertion that MATCHED 13 elements was graded honestly in the field an agent
+ * gates on, and told in prose that the tab may never have rendered. It also doubled up on a failure
+ * that already carried a more specific reason (an unreadable locator, a superseded window), where
+ * the concrete diagnosis is the one that should lead.
  */
-export function annotateStarvedFailure<V extends { pass?: boolean; failureReason?: string }>(
-  session: Session,
-  verdict: V,
-): V {
+export function annotateStarvedFailure<
+  V extends { pass?: boolean; failureReason?: string; inconclusive?: string },
+>(session: Session, verdict: V): V {
   if (true === verdict.pass || verdict.failureReason === undefined) return verdict;
   if (true !== session.throttled()) return verdict;
+  if (THROTTLED_STARVED_NOTE !== verdict.inconclusive) return verdict;
   return { ...verdict, failureReason: `${verdict.failureReason}${STARVED_WAIT_NOTE}` };
 }
 
