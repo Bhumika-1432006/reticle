@@ -738,7 +738,11 @@ export const OBSERVE_TOOLS: ToolDef[] = [
             ? { logs, total: matched.length, droppedOldest, ...buffer }
             : { logs, ...buffer },
           'logs',
-          { noun: 'console lines', caveat: CONSOLE_ATTACH_NOTE },
+          // Same gate as the predicate path, for the same reason and at the same price: the blind
+          // stretch is between page load and attach, so only a window that starts at attach can
+          // contain it. A read since an action already began after the channel was live, and
+          // stapling 369 bytes onto every quiet read would be paying for a caveat that is not true.
+          { noun: 'console lines', ...(0 === since ? { caveat: CONSOLE_ATTACH_NOTE } : {}) },
         ),
       );
     },

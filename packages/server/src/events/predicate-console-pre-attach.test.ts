@@ -65,3 +65,27 @@ describe('a console absence over the startup window says what it could not see',
     expect(result.failureReason).not.toMatch(/before the SDK/i);
   });
 });
+
+/**
+ * The caveat costs 369 bytes and must be paid only where it is TRUE.
+ *
+ * The blind stretch is between page load and SDK attach, so only a window starting at attach can
+ * contain it. A read or an assertion scoped since an action began after the channel was already
+ * live, and adding the sentence there would be a toll on every quiet window in a drive — the exact
+ * shape of token regression this repo has shipped before and only caught at the benchmark.
+ */
+describe('the attach caveat is paid only where it is true', () => {
+  it('is absent from an assertion whose window an action opened', () => {
+    const result = evalConsole([], { kind: 'console', level: 'error', absent: true, since: 900 });
+    expect(JSON.stringify(result)).not.toContain('attach');
+  });
+
+  it('is absent once the channel has reported anything at all', () => {
+    const result = evalConsole([ev(EventType.CONSOLE_LOG, 'ready', 12)], {
+      kind: 'console',
+      level: 'error',
+      absent: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('attach');
+  });
+});
