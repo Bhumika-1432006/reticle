@@ -248,6 +248,15 @@ export interface InitOptions {
   /** Set on the recursive call after a workspace redirect, so the search happens at most once. */
   redirected?: boolean;
   /**
+   * `--url`: the address the app is ALREADY served on, so init starts nothing.
+   *
+   * Parsed by the CLI since the flag existed and never handed to `init`, which made the
+   * package-manager refusal name it as the escape hatch while being unable to see it. The value
+   * itself is not read here — only whether one was given — but it is typed as the URL rather than a
+   * boolean so the option means the same thing everywhere the flag does.
+   */
+  url?: string | undefined;
+  /**
    * Where the human ran the command, carried across a workspace redirect.
    *
    * The agent rule and `/reticle` command files are read by the AGENT, whose session runs where the
@@ -880,6 +889,7 @@ function runInitSteps(options: InitOptions, io: InitIo): InitResult {
       probe: (command, args) => io.probe(command, args),
     },
     planInput.detection.packageManager,
+    { alreadyServed: options.url !== undefined && '' !== options.url },
   );
   if (refusal !== undefined) {
     io.print(refusal);

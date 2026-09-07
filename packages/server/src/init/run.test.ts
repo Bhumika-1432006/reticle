@@ -1156,3 +1156,37 @@ describe('the closing hint names the MCP reload before it tells you to ask the a
     expect(out, 'the dev-server restart still stands').toContain('Restart');
   });
 });
+
+/**
+ * `--url` has to actually reach `init`, or the refusal that advertises it is a circle.
+ *
+ * The flag was parsed by the CLI for as long as it has existed and then dropped between the parser
+ * and `runInit`, so `init --app src/ui --url http://localhost:3100` on a machine without pnpm was
+ * refused BY A MESSAGE NAMING `--url` as the way past. The rule in preflight.ts is only half the
+ * fix; without the option carrying it, the rule is correct and inert.
+ */
+describe('runInit honours --url on the package-manager preflight', () => {
+  const PNPM_APP = {
+    'package.json': JSON.stringify({ devDependencies: { vite: '^5', react: '^19' } }),
+    'pnpm-lock.yaml': 'lockfileVersion: 6.0\n',
+    'vite.config.ts': `export default { plugins: [] };\n`,
+  };
+  // `claudeAvailable: false` is how this harness makes every `probe` say no, which is what a machine
+  // without the project's package manager looks like from here.
+  const noTooling = { claudeAvailable: false };
+
+  it('refuses without --url — the case the check exists for', () => {
+    const io = memoryIo(PNPM_APP, noTooling);
+    runInit({ ...OPTS, dryRun: true }, io);
+    expect(io.lines.join('\n')).toContain('is not installed on this machine');
+  });
+
+  it('does not refuse when the app is already served', () => {
+    const io = memoryIo(PNPM_APP, noTooling);
+    runInit({ ...OPTS, dryRun: true, url: 'http://localhost:3100' }, io);
+    expect(
+      io.lines.join('\n'),
+      'the message names --url as the escape, so --url must be one',
+    ).not.toContain('is not installed on this machine');
+  });
+});
