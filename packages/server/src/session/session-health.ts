@@ -44,12 +44,23 @@ export interface SessionHealth {
 /**
  * How long a request may be in flight before it is worth reporting on session health.
  *
- * A drive always has requests in the air, so a low bar would put a scary number on every healthy
- * session and train agents to ignore the field — the same way a guard that fires on routine controls
- * trains them to pass `confirmDangerous` reflexively. This is well past any normal round trip and
- * well under the times both reporters actually observed.
+ * A drive always has requests in the air, so a low bar puts a scary number on every healthy session
+ * and trains agents to ignore the field — the same way a guard that fires on routine controls trains
+ * them to pass `confirmDangerous` reflexively.
+ *
+ * 10s, and it is a HEURISTIC with no clean separation available: "a slow endpoint" and "a server
+ * that will never answer" are the same observation until one of them finishes. The number is chosen
+ * to sit between the two things actually measured, not derived from anything.
+ *
+ * Below it: this repo's own battery runs its API with `REFLECT_MS=6000` on purpose, and at the 5s
+ * this first shipped with, a healthy app with one slow route was permanently non-nominal and carried
+ * a scary number on every result.
+ *
+ * Above it: both reported wedges — 10.4s on one, 170s+ on the other. 10.4s clears this by 400ms,
+ * which is thin, and an app with an 8-second endpoint will not be warned about a wedge until 10s.
+ * That is the trade: an over-firing field gets ignored, and a field nobody reads catches nothing.
  */
-export const PENDING_NAVIGATION_NOTICE_MS = 5_000;
+export const PENDING_NAVIGATION_NOTICE_MS = 10_000;
 
 /**
  * Said beside `dispatched` / `settled` on a skewed session, because those fields read as success.

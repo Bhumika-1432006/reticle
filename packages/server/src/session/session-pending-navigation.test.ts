@@ -33,13 +33,30 @@ const settled = (id: string, t: number): ReticleEvent =>
 
 describe('a long-pending request is reported on session health', () => {
   it('reports the age of the OLDEST unsettled request', () => {
-    const now = 12_000;
+    const now = 20_000;
     const age = pendingNavigationMs([pending('a', 500), pending('b', 9_000)], now);
-    expect(age, 'the oldest is the one that says the server is not answering').toBe(11_500);
+    expect(age, 'the oldest is the one that says the server is not answering').toBe(19_500);
   });
 
   it('says nothing when every request settled', () => {
-    expect(pendingNavigationMs([pending('a', 500), settled('a', 800)], 12_000)).toBeUndefined();
+    expect(pendingNavigationMs([pending('a', 500), settled('a', 800)], 20_000)).toBeUndefined();
+  });
+
+  /**
+   * A deliberately slow endpoint is not a wedge, and this repo has one: the e2e battery runs its API
+   * with `REFLECT_MS=6000`. At the 5s this shipped with, a healthy app with one slow route was
+   * permanently non-nominal and carried a scary number on every result.
+   */
+  it('does not fire on an app with a legitimately slow endpoint', () => {
+    expect(pendingNavigationMs([pending('slow', 0)], 6_000)).toBeUndefined();
+  });
+
+  it('still catches both cases it was built for', () => {
+    // The two the reporters measured: 10.4s and 170s+. The first clears the bar by 400ms, which is
+    // thin on purpose — the alternative is a bar low enough to fire on every slow endpoint, and a
+    // field that fires on healthy sessions is a field agents learn to skip.
+    expect(pendingNavigationMs([pending('a', 0)], 10_400)).toBe(10_400);
+    expect(pendingNavigationMs([pending('a', 0)], 172_000)).toBe(172_000);
   });
 
   it('says nothing about a request that is merely in flight right now', () => {
@@ -60,8 +77,8 @@ describe('a long-pending request is reported on session health', () => {
     // Order in the buffer is not the question; matching ids is.
     const age = pendingNavigationMs(
       [pending('old', 100), settled('old', 200), pending('stuck', 1_000)],
-      20_000,
+      30_000,
     );
-    expect(age).toBe(19_000);
+    expect(age).toBe(29_000);
   });
 });
