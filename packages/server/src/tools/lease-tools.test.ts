@@ -524,3 +524,84 @@ describe('prioritising a tab that is already open', () => {
     expect(out['url']).toBe('http://localhost:3000/');
   });
 });
+
+describe('falls back to an already-connected tab when no managed browser can be launched (#691)', () => {
+  it('hands back the live tab instead of throwing when Chromium is not installed', async () => {
+    const watcher = { id: 's-human', projectId: 'acme', pushNarration: () => undefined };
+    const { pool, acquired } = fakePool();
+    const deps = {
+      sessions: { all: () => [watcher], get: () => watcher },
+      pool,
+      browserProbe: () => Promise.resolve({ exists: false }),
+    } as unknown as ToolDeps;
+
+    const out = (await tool(ReticleTool.LEASE_ACQUIRE)(deps, {
+      url: 'http://localhost:3000/',
+      projectId: 'acme',
+    })) as Record<string, unknown>;
+
+    expect(out['sessionId']).toBe('s-human');
+    expect(out['ready']).toBe(true);
+    const fallback = out['noManagedBrowser'] as { reason: string } | undefined;
+    expect(fallback?.reason).toContain('Chromium is not installed');
+    // The whole point: no launch was attempted once a live tab covered the need.
+    expect(acquired).toHaveLength(0);
+  });
+
+  it('still throws the clean install error when Chromium is absent AND no tab is open', async () => {
+    const { pool, acquired } = fakePool();
+    const deps = {
+      sessions: { all: () => [], get: () => ({ id: 'live' }) },
+      pool,
+      browserProbe: () => Promise.resolve({ exists: false }),
+    } as unknown as ToolDeps;
+
+    await expect(
+      tool(ReticleTool.LEASE_ACQUIRE)(deps, { url: 'http://localhost:3000/' }),
+    ).rejects.toThrow(/Chromium is not installed/);
+    expect(acquired).toHaveLength(0);
+  });
+
+  it('hands back the live tab instead of throwing when the launch itself fails', async () => {
+    const watcher = { id: 's-human', projectId: 'acme', pushNarration: () => undefined };
+    const pool = {
+      acquire: () =>
+        Promise.reject(new Error('page.goto: net::ERR_CONNECTION_REFUSED at http://x/')),
+      activeCount: () => 0,
+      queuedCount: () => 0,
+      leaseTtlMs: () => 300_000,
+      leasedSessionIds: () => [],
+    } as unknown as BrowserPool;
+    const deps = {
+      sessions: { all: () => [watcher], get: () => watcher },
+      pool,
+    } as unknown as ToolDeps;
+
+    const out = (await tool(ReticleTool.LEASE_ACQUIRE)(deps, {
+      url: 'http://localhost:3000/',
+      projectId: 'acme',
+    })) as Record<string, unknown>;
+
+    expect(out['sessionId']).toBe('s-human');
+    const fallback = out['noManagedBrowser'] as { reason: string } | undefined;
+    expect(fallback?.reason).toContain('could not open');
+  });
+
+  it('still throws the clean navigation error when the launch fails AND no tab is open', async () => {
+    const pool = {
+      acquire: () =>
+        Promise.reject(new Error('page.goto: net::ERR_CONNECTION_REFUSED at http://x/')),
+      activeCount: () => 0,
+      queuedCount: () => 0,
+      leaseTtlMs: () => 300_000,
+    } as unknown as BrowserPool;
+    const deps = {
+      sessions: { all: () => [], get: () => ({ id: 'live' }) },
+      pool,
+    } as unknown as ToolDeps;
+
+    await expect(
+      tool(ReticleTool.LEASE_ACQUIRE)(deps, { url: 'http://localhost:3000/' }),
+    ).rejects.toThrow(/could not open http:\/\/localhost:3000\/ — is the app running there\?/);
+  });
+});

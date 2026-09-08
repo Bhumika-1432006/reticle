@@ -282,11 +282,18 @@ export const LEASE_ACQUIRE_TOOL: ToolDef = {
       ),
     expiresInMs: z
       .number()
+      .optional()
       .describe(
-        'Milliseconds until this lease expires if untouched. Each tool call that targets this session resets the clock. Plan your work to finish or re-acquire before this runs out.',
+        'Milliseconds until this lease expires if untouched. Each tool call that targets this session resets the clock. Plan your work to finish or re-acquire before this runs out. Absent when `noManagedBrowser` is present — nothing was leased, so nothing expires.',
       ),
     leased: z.number().describe('How many contexts are currently leased from the pool.'),
     queued: z.number().describe('How many acquires are waiting for a free slot.'),
+    noManagedBrowser: z
+      .object({ sessionId: z.string(), reason: z.string() })
+      .optional()
+      .describe(
+        'Present when no managed (pooled) browser could be launched — Chromium missing, a shared-library dependency missing, or the launch itself failed — and an already-connected tab was available instead. `sessionId` is that tab; this is NOT an isolated lease, so `reused`/`expiresInMs` do not apply and this session cannot be released like one.',
+      ),
     preferExisting: z
       .object({ sessionId: z.string(), note: z.string() })
       .optional()
@@ -315,6 +322,12 @@ export const LEASE_ACQUIRE_TOOL: ToolDef = {
     const url = asString(args['url']);
     if (url === undefined || 0 === url.length)
       throw new Error('reticle_lease{action:"acquire"} requires a url');
+    const projectId = asString(args['projectId']);
+    // Sampled BEFORE the browser preflight or the acquire attempt: it is also the fallback when
+    // NEITHER can produce a lease (#691) — a lease is what we recommend when a human's tab is
+    // hidden/throttled, so failing outright when no managed browser is launchable strands the agent
+    // with no options even though a driveable, connected tab was sitting right there.
+    const alreadyOpen = liveTabFor(deps, projectId);
     // Preflight the browser before spending the round trip. Without it a missing Playwright Chromium
     // only surfaces inside pool.acquire, where the launch failure is caught and reported as
     // "could not open <url> — is the app running?" — sending the caller to debug an app that is
@@ -323,14 +336,12 @@ export const LEASE_ACQUIRE_TOOL: ToolDef = {
     if (deps.browserProbe !== undefined) {
       const probe = await deps.browserProbe();
       if (!probe.exists) {
-        throw new Error(`Chromium is not installed for Playwright — ${chromiumHint(probe)}`);
+        const reason = `Chromium is not installed for Playwright — ${chromiumHint(probe)}`;
+        if (alreadyOpen !== undefined)
+          return noManagedBrowserFallback(pool, url, alreadyOpen, reason);
+        throw new Error(reason);
       }
     }
-    const projectId = asString(args['projectId']);
-    // Sampled BEFORE acquiring: afterwards this lease is itself a session, and the point is to name
-    // a tab that already existed. A human's open tab is the one they can watch, so if one is here
-    // the agent should be told at the moment it is choosing — not after it has gone dark on them.
-    const alreadyOpen = liveTabFor(deps, projectId);
     const origin = originOf(url);
     const existing = origin === undefined ? undefined : pool.leaseIdOnOrigin?.(origin);
     if (existing !== undefined && origin !== undefined) {
@@ -375,7 +386,10 @@ export const LEASE_ACQUIRE_TOOL: ToolDef = {
     } catch (err) {
       // A raw page.goto failure is noisy and leaks the internal URL params — surface a clean,
       // actionable message instead.
-      throw new Error(`could not open ${url} — is the app running there? (${cleanNavError(err)})`);
+      const reason = `could not open ${url} — is the app running there? (${cleanNavError(err)})`;
+      if (alreadyOpen !== undefined)
+        return noManagedBrowserFallback(pool, url, alreadyOpen, reason);
+      throw new Error(reason);
     }
     // Wait for the leased tab's SDK to connect so the returned sessionId is usable right away.
     // Resolved rather than assumed: an app that names its own session registers under that name,
@@ -492,6 +506,36 @@ function liveTabFor(deps: ToolDeps, projectId: string | undefined): string | und
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The recovery for #691's third ask: several reporters hit a Chromium the pool could not launch
+ * (missing binary, missing shared library, a build-revision mismatch) and fell back to an
+ * already-open tab by hand — and it worked. A lease is what this daemon RECOMMENDS when a human's
+ * tab is hidden/throttled, so failing outright the moment the managed browser is unavailable strands
+ * the agent with no path forward even when a driveable, connected tab was sitting right there.
+ *
+ * Not a lease: nothing was acquired from the pool, so `reused`/`expiresInMs` would describe a
+ * context that does not exist. `ready: true` is honest regardless — this session is, by construction,
+ * already connected (it is how `alreadyOpen` was found).
+ */
+function noManagedBrowserFallback(
+  pool: NonNullable<ToolDeps['pool']>,
+  url: string,
+  sessionId: string,
+  reason: string,
+): Record<string, unknown> {
+  return {
+    sessionId,
+    url,
+    ready: true,
+    leased: pool.activeCount(),
+    queued: pool.queuedCount(),
+    noManagedBrowser: {
+      sessionId,
+      reason: `${reason} — falling back to the already-connected tab instead of failing outright.`,
+    },
+  };
 }
 
 /**
