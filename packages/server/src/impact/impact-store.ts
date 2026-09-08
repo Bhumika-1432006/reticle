@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { readAccountState } from '../cloud/account-state.js';
 import {
   ReticleDir,
   IMPACT_DAILY_BUCKETS,
@@ -13,6 +14,7 @@ import {
   estimateImpactSavings,
   type ImpactCounts,
   type ImpactDefect,
+  type AccountState,
   type ImpactScope,
   type ImpactSnapshot,
 } from '@reticlehq/core';
@@ -222,6 +224,7 @@ export class ImpactStore {
   #pendingGlobal: { delta: Partial<ImpactCounts>; now: number; meta: ImpactFoldMeta }[] = [];
   #timer: ReturnType<typeof setTimeout> | undefined;
   #onChange: (() => void) | undefined;
+  readonly #account: () => AccountState;
 
   constructor(opts: {
     reticleRoot: string;
@@ -229,8 +232,13 @@ export class ImpactStore {
     now?: () => number;
     /** Where `~/.reticle` lives. Defaults to the real home; overridden so the shared scope is testable. */
     globalRoot?: string;
+    /** Reads whether this machine is signed in. Injected so the store stays testable and pure-ish. */
+    account?: () => AccountState;
   }) {
     this.#paths = impactPaths(opts.reticleRoot, opts.globalRoot ?? homedir());
+    // Resolved per snapshot, not cached: a user who runs `reticle login` in another terminal must
+    // see the HUD change without restarting the daemon that is watching their app.
+    this.#account = opts.account ?? ((): AccountState => readAccountState(homedir(), process.env));
     this.#now = opts.now ?? ((): number => Date.now());
     this.#projectName = opts.projectName;
     this.#dashboardUrl = readDashboardUrl(opts.reticleRoot);
@@ -263,6 +271,7 @@ export class ImpactStore {
     };
     if (this.#projectName !== undefined) snap.projectName = this.#projectName;
     if (this.#dashboardUrl !== undefined) snap.dashboardUrl = this.#dashboardUrl;
+    snap.account = this.#account();
     return snap;
   }
 

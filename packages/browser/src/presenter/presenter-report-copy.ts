@@ -81,6 +81,10 @@ export const REPORT_TEXT = {
   LOCAL_ONLY: 'This record stops at this machine.',
   LOCAL_ONLY_ACTION: 'reticle login',
   LOCAL_ONLY_TAIL: 'keeps it, and lets a team see it.',
+  /** Signed in, repo not linked — a different state with a different next step. */
+  UNLINKED: 'Signed in, but this repo is not linked.',
+  UNLINKED_ACTION: 'reticle link',
+  UNLINKED_TAIL: 'sends this record to your workspace.',
   DEFECTS_NONE: 'Nothing has failed a declared consequence yet.',
   EMPTY: 'Nothing recorded yet. Drive the app once and this fills in.',
   SHARE: 'Share',

@@ -80,7 +80,9 @@ describe('what an UNLINKED user is told about the dashboard', () => {
   const withVerdicts = scope({ calls: 40, verdicts: 12, passed: 9, failed: 2, unknown: 1 });
 
   it('names the one command, once, when there is a record worth keeping', () => {
-    const html = reportBodyHtml(withVerdicts);
+    // The account state is now REQUIRED to say this. Without it the machine's status is unknown,
+    // and an unknown must not be read as signed-out — see the account-state tests beside this file.
+    const html = reportBodyHtml(withVerdicts, undefined, { signedIn: false });
     expect(html).toContain('This record stops at this machine.');
     expect(html).toContain('reticle login');
     // Once. A second mention in the same panel is where a line becomes a nag.
