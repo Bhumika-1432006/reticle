@@ -50,8 +50,6 @@ import {
   healthEnvelope,
   bufferEnvelope,
 } from '../session/session-health.js';
-import type { Session } from '../session/session.js';
-import type { Predicate } from '../events/predicate.js';
 import {
   assertsDerivedIpcStatus,
   DERIVED_IPC_STATUS_ADVICE,
@@ -59,7 +57,7 @@ import {
   PRESENCE_ONLY_ADVICE,
 } from './assert-grade.js';
 import { assertVerdict } from './assert-verdict.js';
-import { assertSource } from './assert-source.js';
+import { assertionSource } from './assert-source.js';
 import { isChangeUndeclared } from '../honesty/undeclared-change.js';
 import { openSessionIntents } from '../intent/open-intents.js';
 import {
@@ -85,29 +83,6 @@ const bufferOutputShape = {
       'Present only when the event buffer evicted events — a negative result may then be a false negative.',
     ),
 };
-
-/**
- * The file:line an assertion may report — see `assertSource`.
- *
- * Neither `reticle_assert` nor `reticle_wait_for` drives anything, so the last act's source is about
- * some earlier action and not about this verdict. The pointer comes from the assertion's own matched
- * evidence; the last driven control is borrowed only for a RED whose predicate has no DOM clause at
- * all, which is the failure that genuinely has no element to point at.
- */
-function assertionSource(
-  session: Session,
-  predicate: Predicate,
-  verdict: { pass: boolean; evidence?: unknown; inconclusive?: string },
-): { source?: string } {
-  const source = assertSource({
-    predicate,
-    evidence: verdict.evidence,
-    pass: verdict.pass,
-    lastActSource: session.lastAct.source(),
-    ...(verdict.inconclusive === undefined ? {} : { inconclusive: verdict.inconclusive }),
-  });
-  return source === undefined ? {} : { source };
-}
 
 /**
  * Drop `sessionId` from an event in a response the caller scoped to ONE session.
@@ -657,7 +632,7 @@ export const OBSERVE_TOOLS: ToolDef[] = [
           {
             calls,
             ...(droppedOldest > 0 ? { total: matched.length, droppedOldest } : {}),
-            ...(bodies ? bodiesNotCaptured(calls) : {}),
+            ...(bodies ? bodiesNotCaptured(calls, session.sdkVersion) : {}),
             ...buffer,
           },
           'calls',

@@ -130,6 +130,8 @@ export class Session {
   hasCapabilities: boolean;
   /** Set when the page's SDK version differs from the daemon's (see version-skew.ts). */
   versionSkew?: string;
+  /** SDK version from HELLO; kept so a remedy can check it applies — see body-capture-remedy.ts. */
+  sdkVersion?: string | undefined;
   /**
    * Extra key names this app declared sensitive via `connect({ redact: { keys } })`. Held so the
    * DRIVEN path can redact them too — a request body the daemon captures from the network stack
