@@ -66,6 +66,7 @@ import {
   linkInlineIntent,
 } from '../intent/inline-intent.js';
 import { bodiesNotCaptured } from '../honesty/uncaptured-bodies.js';
+import { bodyClauseRefusal } from '../honesty/body-capture-remedy.js';
 import { withControl } from '../session/control-envelope.js';
 import { asString, asNumber, asRecord } from './tools-helpers.js';
 import { type ToolDef, intentArg, sessionIdShape, commandOrThrow } from './tool-kit.js';
@@ -326,6 +327,10 @@ export const OBSERVE_TOOLS: ToolDef[] = [
       );
       // `until` is act_and_wait's name for this — see alias-args.ts.
       const predicate = parsePredicate(aliasParam(args, 'predicate', ['until'])['predicate']);
+      // Refused up front rather than waited out: a body clause this session cannot answer would
+      // burn the whole timeout to report something knowable now. See #801(C).
+      const bodyRefusal = bodyClauseRefusal(predicate, session);
+      if (bodyRefusal !== undefined) throw new Error(bodyRefusal);
       // Honesty: explicit since wins; else default to the last act's cursor; else the whole buffer.
       const since = asNumber(args['since']) ?? session.lastAct.cursor() ?? 0;
       const verdict = await waitForPredicate(session, predicate, waitBudget, since);
@@ -450,6 +455,10 @@ export const OBSERVE_TOOLS: ToolDef[] = [
       );
       // `until` is act_and_wait's name for this — see alias-args.ts.
       const predicate = parsePredicate(aliasParam(args, 'predicate', ['until'])['predicate']);
+      // Refused up front rather than waited out: a body clause this session cannot answer would
+      // burn the whole timeout to report something knowable now. See #801(C).
+      const bodyRefusal = bodyClauseRefusal(predicate, session);
+      if (bodyRefusal !== undefined) throw new Error(bodyRefusal);
       // Honesty: explicit since wins; else default to the last act's cursor; else the whole buffer.
       const since = asNumber(args['since']) ?? session.lastAct.cursor() ?? 0;
       // Declared BEFORE the verdict, so the undeclared-change read below finds it open and stays

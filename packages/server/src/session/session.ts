@@ -132,6 +132,8 @@ export class Session {
   versionSkew?: string;
   /** SDK version from HELLO; kept so a remedy can check it applies — see body-capture-remedy.ts. */
   sdkVersion?: string | undefined;
+  /** Whether the page records network bodies; undefined on an SDK too old to say. See HELLO. */
+  captureBodies?: boolean | undefined;
   /**
    * Extra key names this app declared sensitive via `connect({ redact: { keys } })`. Held so the
    * DRIVEN path can redact them too — a request body the daemon captures from the network stack

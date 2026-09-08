@@ -62,3 +62,44 @@ export function bodyCaptureRemedy(sdkVersion: string | undefined): string {
   }
   return ENABLE_IT;
 }
+
+/** Clause names that can only be answered from a recorded body. */
+const BODY_CLAUSE_FIELDS = ['bodyContains', 'requestBodyContains'] as const;
+
+/** Does this predicate, or anything nested in it, ask about a body? */
+function asksAboutBody(predicate: unknown): boolean {
+  if (null === predicate || 'object' !== typeof predicate) return false;
+  const node = predicate as Record<string, unknown>;
+  if (BODY_CLAUSE_FIELDS.some((f) => node[f] !== undefined)) return true;
+  // The reported shape is an `allOf` carrying route + console + the net clause that needs bodies.
+  // Checking only the top level would miss every realistic call.
+  const nested = node['predicates'] ?? node['predicate'];
+  if (Array.isArray(nested)) return nested.some(asksAboutBody);
+  return asksAboutBody(nested);
+}
+
+/**
+ * Refuse a body clause the session cannot answer, BEFORE the action is spent.
+ *
+ * Reported: an `act_and_wait` matched the right call and returned `verified: "no"` with "a matching
+ * call with no recorded body", because that project's `connect()` does not pass
+ * `captureNetworkBodies` — and the reporter could not change it, since it was not their project's
+ * config to edit for an unrelated verification task. The action bought nothing that was not knowable
+ * in advance, and on a drive that mutates state an action is not always repeatable. That is what
+ * makes this a pre-flight rather than a better failure message.
+ *
+ * Refuses ONLY on a DECLARED `captureBodies: false`. An SDK too old to announce the setting sends
+ * nothing, and refusing on silence would break every session predating the announcement for a clause
+ * many of them satisfy — the same asymmetry that makes an unknown VERSION count as capable.
+ */
+export function bodyClauseRefusal(
+  predicate: unknown,
+  session: { captureBodies?: boolean | undefined; sdkVersion?: string | undefined },
+): string | undefined {
+  if (false !== session.captureBodies) return undefined;
+  if (!asksAboutBody(predicate)) return undefined;
+  return (
+    'this assertion reads a request/response BODY, and this session is not recording them — it ' +
+    `would fail whatever the app did. Nothing ran, so no action was spent. ${bodyCaptureRemedy(session.sdkVersion)}`
+  );
+}
