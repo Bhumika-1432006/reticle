@@ -143,6 +143,19 @@ function defects(scope: ImpactScope, dashboardUrl: string | undefined): string {
    */
   const list = (scope.defects ?? []).slice(0, IMPACT_DEFECT_LIMIT);
   if (0 === list.length) return '';
+  /*
+   * The way through, per row — but only for a project that is actually linked.
+   *
+   * An icon leading somewhere the user has no account for is an advert on a row about their own
+   * broken app, which is the worst possible moment for one. It is the DASHBOARD's icon rather than
+   * GitHub's: a GitHub mark promises "this files a GitHub issue", and the link goes to the
+   * dashboard, which is where pushing to a tracker is managed. The copy carries what the icon
+   * cannot.
+   */
+  const linked = dashboardUrl !== undefined && isSafeDashboardUrl(dashboardUrl);
+  const rowLink = linked
+    ? `<a class="reticle-report-defect-link" href="${esc(dashboardUrl)}" target="_blank" rel="noreferrer noopener" title="${REPORT_TEXT.DEFECT_LINK_TITLE}" aria-label="${REPORT_TEXT.DEFECT_LINK_TITLE}">${hiIconHtml(PresenterIcon.VIEW, PRESENTER_ICON_SIZE.SEND)}</a>`
+    : '';
   const rows = list
     .map((d) => {
       const detail =
@@ -153,15 +166,14 @@ function defects(scope: ImpactScope, dashboardUrl: string | undefined): string {
         d.source === undefined
           ? ''
           : `<span class="reticle-report-defect-source">${esc(d.source)}</span>`;
-      return `<li class="reticle-report-defect"><span class="reticle-report-defect-title">${esc(d.title)}</span>${detail}${source}</li>`;
+      return `<li class="reticle-report-defect"><span class="reticle-report-defect-title">${esc(d.title)}</span>${detail}${source}${rowLink}</li>`;
     })
     .join('');
   // Only claim there are more when there actually are — `counts.failed` is every defect ever, and
   // this list is the recent tail of it.
-  const more =
-    dashboardUrl === undefined || !isSafeDashboardUrl(dashboardUrl)
-      ? ''
-      : `<a class="reticle-report-defects-more" href="${esc(dashboardUrl)}" target="_blank" rel="noreferrer noopener">${REPORT_TEXT.DEFECTS_MORE}${scope.counts.failed > list.length ? ` (${String(scope.counts.failed)})` : ''}</a>`;
+  const more = !linked
+    ? ''
+    : `<a class="reticle-report-defects-more" href="${esc(dashboardUrl)}" target="_blank" rel="noreferrer noopener">${REPORT_TEXT.DEFECTS_MORE}${scope.counts.failed > list.length ? ` (${String(scope.counts.failed)})` : ''}</a>`;
   return `<div class="reticle-report-defects-wrap"><span class="reticle-report-section">${REPORT_TEXT.DEFECTS}</span><ul class="reticle-report-defects">${rows}</ul>${more}</div>`;
 }
 

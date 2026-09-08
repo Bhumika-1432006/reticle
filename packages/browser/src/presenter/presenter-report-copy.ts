@@ -66,7 +66,16 @@ export const REPORT_TEXT = {
   ESTIMATE_TAG: 'estimate',
   CHART: 'Verdicts, last 30 days',
   DEFECTS: 'What broke',
-  DEFECTS_MORE: 'Manage all of them on the dashboard',
+  DEFECTS_MORE: 'Manage all of them on the dashboard — triage, assign, and push to GitHub',
+  /**
+   * The row link's accessible name and tooltip.
+   *
+   * It says DASHBOARD, not GitHub, because that is where the link goes. A GitHub mark here would
+   * promise "this files a GitHub issue" and then not do it; pushing to a tracker is something the
+   * dashboard manages, so the icon is honest about the destination and this sentence carries the
+   * rest.
+   */
+  DEFECT_LINK_TITLE: 'Open on the dashboard to triage or push to GitHub',
   /**
    * What an UNLINKED user is told, and the only place the product tells them.
    *
