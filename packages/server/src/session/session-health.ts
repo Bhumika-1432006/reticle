@@ -28,6 +28,17 @@ export interface SessionHealth {
    * was eventually established with `curl`.
    */
   pendingNavigationMs?: number;
+  /**
+   * Present only when the page's SDK version differs from the daemon's — see version-skew.ts.
+   *
+   * On the HEALTH block, not only on `reticle_sessions`, because skew causes SILENT action failures
+   * and the fields it contradicts ride on the act result. Reported from the field: `act_and_wait`
+   * returning `dispatched: true, settled: true, domMutatedWithin: 12-40ms` while React state never
+   * changed, across eight attempts and three interaction strategies. The banner existed the whole
+   * time — on `reticle_sessions` and `reticle_lease`, which is not the surface an agent reads on
+   * every call.
+   */
+  versionSkew?: string;
 }
 
 /**
@@ -39,6 +50,19 @@ export interface SessionHealth {
  * well under the times both reporters actually observed.
  */
 export const PENDING_NAVIGATION_NOTICE_MS = 5_000;
+
+/**
+ * Said beside `dispatched` / `settled` on a skewed session, because those fields read as success.
+ *
+ * The reporter's own account of the cost: "the false-positive dispatch confirmation is what cost the
+ * most time — I trusted `dispatched: true, domMutatedWithin: Nms` as real signal for a long time
+ * before suspecting the skew banner." Stating the contradiction is the whole job here; the existing
+ * banner was accurate and simply never appeared where it was needed.
+ */
+const SKEW_VERDICT_WARNING =
+  'version skew: `dispatched` and `settled` on this session mean the event was sent, NOT that the ' +
+  'app acted on it — a skewed pair drops actions silently. Re-read the control (aria-checked, ' +
+  'data-state, its text) before trusting any verdict from this session, and converge the versions:';
 
 /**
  * The age of the oldest request that STARTED and never completed, or undefined when there is none
@@ -103,8 +127,15 @@ export function healthEnvelope(session: Session): HealthEnvelope {
     !health.throttled &&
     health.focused &&
     health.recommendation === undefined &&
-    health.pendingNavigationMs === undefined;
+    health.pendingNavigationMs === undefined &&
+    health.versionSkew === undefined;
   if (nominal) return {};
+  // Skew outranks the throttle warning when both hold: a throttled tab makes a reading unreliable,
+  // a skewed link makes the ACTION unreliable, and there is no point warning about the quality of an
+  // observation of something that may never have happened.
+  if (health.versionSkew !== undefined) {
+    return { session: health, warning: `${SKEW_VERDICT_WARNING} ${health.versionSkew}` };
+  }
   return health.throttled ? { session: health, warning: THROTTLED_WARNING } : { session: health };
 }
 

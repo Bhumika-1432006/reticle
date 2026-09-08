@@ -281,6 +281,9 @@ export class Session {
       throttled: this.throttled(),
       focused: this.#focused,
       ...(stuck === undefined ? {} : { pendingNavigationMs: stuck }),
+      // Carried onto every act/assert result, not just reticle_sessions: skew drops actions
+      // SILENTLY, and the fields it contradicts are on the act verdict.
+      ...(this.versionSkew === undefined ? {} : { versionSkew: this.versionSkew }),
     };
     // attach the escape-hatch hint only when un-scriptable (keeps field absent otherwise).
     const recommendation = buildSessionRecommendation({
