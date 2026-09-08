@@ -3,7 +3,13 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // Everything else in this monorepo targets ES2022 (see tsconfig.base.json), but this package's
+    // `dist/` is the one output an end user's OWN bundler parses, not just Node — and react-scripts
+    // 4 / webpack 4 excludes node_modules from Babel, so ES2020+ syntax (optional chaining, nullish
+    // coalescing, `??=`) fails to even PARSE, with no diagnostic (#680). Downleveled here, and only
+    // here: the rest of the monorepo runs on a Node version that never had this problem.
+    "target": "ES2019"
   },
   "include": ["src/**/*"],
   "references": [{ "path": "../core" }]
