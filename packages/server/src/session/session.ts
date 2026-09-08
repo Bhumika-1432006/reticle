@@ -5,7 +5,7 @@ import { LastAct } from './last-act.js';
 import { GapLedger } from '../honesty/gap-ledger.js';
 import { CaptureLedger } from '../honesty/feature-capture.js';
 import { commandTimeoutMessage, type PageRuntime } from './command-timeout.js';
-import { readHealthEvent, type SessionHealth } from './session-health.js';
+import { readHealthEvent, pendingNavigationMs, type SessionHealth } from './session-health.js';
 import { MIRRORED_COMMANDS, mirroredNarration } from './session-mirror.js';
 
 export type { SessionHealth };
@@ -273,10 +273,14 @@ export class Session {
 
   /** The attachable health block — single source of truth for the tools. */
   health(): SessionHealth {
+    // From event t=0, not a cursor: a wedge that began before the current action is exactly the
+    // case a per-window reading cannot see, and is the one both reporters hit.
+    const stuck = pendingNavigationMs(this.eventsSince(0), this.elapsed());
     const base: SessionHealth = {
       lastSeenMs: this.lastSeenMs(),
       throttled: this.throttled(),
       focused: this.#focused,
+      ...(stuck === undefined ? {} : { pendingNavigationMs: stuck }),
     };
     // attach the escape-hatch hint only when un-scriptable (keeps field absent otherwise).
     const recommendation = buildSessionRecommendation({

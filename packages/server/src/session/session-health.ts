@@ -1,8 +1,10 @@
 import {
   BrowserBrand,
+  EventType,
   BUFFER_EVICTION_WARNING,
   THROTTLED_STARVED_NOTE,
   THROTTLED_WARNING,
+  type ReticleEvent,
 } from '@reticlehq/core';
 import type { Session } from './session.js';
 
@@ -16,6 +18,51 @@ export interface SessionHealth {
   focused: boolean;
   /** present only when hidden/throttled — points at the `reticle drive` escape hatch. */
   recommendation?: string;
+  /**
+   * How long the OLDEST unanswered request has been in flight, when that is long enough to matter.
+   *
+   * Present only past `PENDING_NAVIGATION_NOTICE_MS`, so a healthy session costs nothing. Both
+   * reporters on the hung-server issue said this alone would have been enough for them: one sat on
+   * an RSC fetch stuck pending for 170+ seconds across many calls, the other on a dev server that
+   * accepted connections and never sent a body. Reticle held the evidence both times and the truth
+   * was eventually established with `curl`.
+   */
+  pendingNavigationMs?: number;
+}
+
+/**
+ * How long a request may be in flight before it is worth reporting on session health.
+ *
+ * A drive always has requests in the air, so a low bar would put a scary number on every healthy
+ * session and train agents to ignore the field — the same way a guard that fires on routine controls
+ * trains them to pass `confirmDangerous` reflexively. This is well past any normal round trip and
+ * well under the times both reporters actually observed.
+ */
+export const PENDING_NAVIGATION_NOTICE_MS = 5_000;
+
+/**
+ * The age of the oldest request that STARTED and never completed, or undefined when there is none
+ * worth reporting.
+ *
+ * Matched on request id, the way `detectHungRequests` and the route oracle's `unansweredIn` do: a
+ * NET_PENDING with no NET_REQUEST carrying the same id. Three readings of one fact is two too many,
+ * but they read different windows — this one is the whole session, which is the point: a wedge that
+ * began before the current action is exactly the case a per-window reading cannot see.
+ */
+export function pendingNavigationMs(
+  events: readonly ReticleEvent[],
+  nowMs: number,
+): number | undefined {
+  const settled = new Set<unknown>();
+  for (const e of events) if (e.type === EventType.NET_REQUEST) settled.add(e.data['id']);
+  let oldest: number | undefined;
+  for (const e of events) {
+    if (e.type !== EventType.NET_PENDING || settled.has(e.data['id'])) continue;
+    if (oldest === undefined || e.t < oldest) oldest = e.t;
+  }
+  if (oldest === undefined) return undefined;
+  const age = nowMs - oldest;
+  return age >= PENDING_NAVIGATION_NOTICE_MS ? age : undefined;
 }
 
 /** The evidence-completeness block spliced onto observe/network/console results. */
@@ -50,7 +97,13 @@ interface HealthEnvelope {
  */
 export function healthEnvelope(session: Session): HealthEnvelope {
   const health = session.health();
-  const nominal = !health.throttled && health.focused && health.recommendation === undefined;
+  // A request stuck in flight makes a session non-nominal even when the tab is fine, because it is
+  // the one condition where every observation is about to be about a page that is not moving.
+  const nominal =
+    !health.throttled &&
+    health.focused &&
+    health.recommendation === undefined &&
+    health.pendingNavigationMs === undefined;
   if (nominal) return {};
   return health.throttled ? { session: health, warning: THROTTLED_WARNING } : { session: health };
 }
