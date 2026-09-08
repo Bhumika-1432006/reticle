@@ -70,6 +70,7 @@ export const RETICLE_CONNECT_MODULE = '/@reticle-connect';
  * external URL, so prefixing a CDN origin onto a dev-server module would point the tag off-host.
  */
 import { mergeIgnored, type WatchPattern } from './watch-ignore.js';
+import { isVitestBrowserServer } from './vitest-browser.js';
 
 export function connectModuleUrl(base: string | undefined): string {
   if (undefined === base || !base.startsWith('/')) return RETICLE_CONNECT_MODULE;
@@ -260,6 +261,12 @@ export interface ViteUserConfigLike {
    * runtime defect: see `mergeIgnored`.
    */
   server?: { watch?: { ignored?: unknown } | null | undefined } | undefined;
+  /**
+   * Vitest's block, when this config belongs to a Vitest run. Read ONLY to spot browser mode — see
+   * `isVitestBrowserServer`. Typed as `unknown` because it is Vitest's shape, not Vite's, and this
+   * plugin has no business asserting anything about the rest of it.
+   */
+  test?: unknown;
 }
 
 /** Structural Vite plugin shape — avoids a hard dependency on `vite` while staying assignable to its `Plugin`. */
@@ -294,7 +301,13 @@ export interface ReticleVitePlugin {
   load: (id: string) => string | null;
   transformIndexHtml: (html: string) => HtmlTag[];
   /** Vite hands over the resolved config; used to resolve the HTML entry exactly. */
-  configResolved?: (config: { root?: string; command?: string; base?: string }) => void;
+  configResolved?: (config: {
+    root?: string;
+    command?: string;
+    base?: string;
+    /** Vitest's block, read only to spot browser mode. See isVitestBrowserServer. */
+    test?: unknown;
+  }) => void;
   /** Dev-server hook: keeps the served connect module from outliving the token it was built without. */
   configureServer?: (server: ViteDevServerLike) => void;
   /** Build-time post-condition: desktop injection must have happened. */
@@ -598,31 +611,6 @@ export const JOURNAL_IGNORE = new RegExp(
   `(^|[\\\\/])${ReticleDir.ROOT.replace('.', '\\.')}([\\\\/]|$)`,
 );
 
-/**
- * Is a Vitest run the thing that loaded this plugin?
- *
- * Vitest browser mode renders each component test into its own iframe served by the SAME Vite dev
- * server, so `transformIndexHtml` injects into every one of them. The HUD then sits in the test
- * document's hit-test path and intercepts pointer events, and a user who adds Reticle watches their
- * unrelated component tests start timing out on clicks. Reticle breaking the suite it is sitting
- * inside is the worst first impression available, and it is not even a trade — there is nothing to
- * observe in a component-test iframe.
- *
- * `VITEST` is exact: Vitest sets it in the process that instantiates the plugin, and only while it
- * is running. A `test` key in the Vite config is the obvious alternative and is WRONG — it says the
- * project HAS Vitest configured, which is true of most projects, and would disable Reticle in the
- * dev server too.
- *
- * An explicit `inject: true` BEATS this. That is a real escape hatch, not a test affordance: the
- * check is a default chosen on the user's behalf, and somebody who has written the option down means
- * it. It is also what lets this plugin's own suite — which runs under Vitest — exercise the
- * injection path at all, and a rule that cannot be tested from its own package is worse than a
- * blunter one.
- */
-function underVitest(env: Record<string, string | undefined> = process.env): boolean {
-  return env['VITEST'] !== undefined && '' !== env['VITEST'];
-}
-
 export function reticle(options: ReticleVitePluginOptions = {}): ReticleVitePlugin {
   const sourceMapping = options.sourceMapping !== false;
   const inject = options.inject !== false;
@@ -647,6 +635,8 @@ export function reticle(options: ReticleVitePluginOptions = {}): ReticleVitePlug
   let command: string | undefined;
   /** Vite's resolved `base`. Undefined until configResolved, which is before any HTML is served. */
   let base: string | undefined;
+  /** True only when THIS server is Vitest's browser-mode runner — see isVitestBrowserServer. */
+  let vitestBrowser = false;
   const warn = options.onWarn ?? ((message: string) => globalThis.console.warn(message));
   /** Whether connect() actually reached a module — asserted at buildEnd, never assumed. */
   let injected = false;
@@ -860,6 +850,7 @@ export function reticle(options: ReticleVitePluginOptions = {}): ReticleVitePlug
       root = config.root;
       command = config.command;
       base = config.base;
+      vitestBrowser = isVitestBrowserServer(config);
     },
     /**
      * Serve the connect module fresh, every time.
@@ -966,9 +957,9 @@ export function reticle(options: ReticleVitePluginOptions = {}): ReticleVitePlug
       }
       // Desktop injects via the entry module instead (see transform) — a tag here would be a dead
       // URL in a packaged build. A Vitest run gets nothing unless `inject: true` says otherwise —
-      // see underVitest.
+      // see isVitestBrowserServer.
       if (!inject || desktop) return [];
-      if (true !== options.inject && underVitest()) return [];
+      if (true !== options.inject && vitestBrowser) return [];
       return [
         // A CLASSIC inline script in <head>, and it has to be both.
         //

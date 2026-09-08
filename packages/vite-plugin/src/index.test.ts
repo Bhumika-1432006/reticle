@@ -53,12 +53,10 @@ describe('reticle vite plugin', () => {
     expect(plugin.transform?.('const x = <button>Hi</button>;', '/app/src/Foo.tsx')).toBeNull();
   });
 
-  // `inject: true` is explicit because the plugin skips injection while VITEST is set, and this
-  // suite runs under Vitest. The option is the documented override — see underVitest.
   it('injects a script that references the connect module by src (not an inline import)', () => {
     // Regression: an inline injected <script> with a bare import is NOT run through Vite import
     // resolution, so it must be served as a real module via src.
-    const plugin = reticle({ inject: true });
+    const plugin = reticle();
     const tags = plugin.transformIndexHtml?.('<html></html>');
     // Two tags now: the classic pre-hook in <head> (which must run before any module script so React
     // finds the devtools hook when it injects) and the module that connects.

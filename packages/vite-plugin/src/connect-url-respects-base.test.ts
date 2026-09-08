@@ -1,9 +1,3 @@
-/**
- * `inject: true` is written out rather than left to default in this file: the plugin skips injection
- * while `VITEST` is set (so it cannot break a user's Vitest browser-mode suite), and these tests
- * exercise the injection path from a suite that is itself Vitest. The explicit option is the
- * documented override, not a test-only affordance.
- */
 import { describe, expect, it } from 'vitest';
 import { connectModuleUrl, reticle, RETICLE_CONNECT_MODULE } from './index.js';
 
@@ -45,13 +39,13 @@ describe('the injected tag under a non-root base', () => {
   };
 
   it('points at base + the module id once Vite has resolved the config', () => {
-    const plugin = reticle({ inject: true });
+    const plugin = reticle();
     plugin.configResolved?.({ root: '/repo', command: 'serve', base: '/playground/' });
     expect(srcOf(plugin)).toBe('/playground/@reticle-connect');
   });
 
   it('still points at the module id when the app is served from the root', () => {
-    const plugin = reticle({ inject: true });
+    const plugin = reticle();
     plugin.configResolved?.({ root: '/repo', command: 'serve', base: '/' });
     expect(srcOf(plugin)).toBe(RETICLE_CONNECT_MODULE);
   });
@@ -59,7 +53,7 @@ describe('the injected tag under a non-root base', () => {
   it('falls back to the root path when configResolved never ran', () => {
     // A host that constructs the plugin and renders HTML without Vite's config pass gets the old
     // behaviour rather than an undefined-shaped URL.
-    expect(srcOf(reticle({ inject: true }))).toBe(RETICLE_CONNECT_MODULE);
+    expect(srcOf(reticle())).toBe(RETICLE_CONNECT_MODULE);
   });
 });
 
