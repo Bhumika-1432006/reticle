@@ -97,13 +97,14 @@ const bufferOutputShape = {
 function assertionSource(
   session: Session,
   predicate: Predicate,
-  verdict: { pass: boolean; evidence?: unknown },
+  verdict: { pass: boolean; evidence?: unknown; inconclusive?: string },
 ): { source?: string } {
   const source = assertSource({
     predicate,
     evidence: verdict.evidence,
     pass: verdict.pass,
     lastActSource: session.lastAct.source(),
+    ...(verdict.inconclusive === undefined ? {} : { inconclusive: verdict.inconclusive }),
   });
   return source === undefined ? {} : { source };
 }

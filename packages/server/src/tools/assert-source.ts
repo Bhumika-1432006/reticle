@@ -46,9 +46,25 @@ export function assertSource(facts: {
   evidence: unknown;
   pass: boolean;
   lastActSource: string | undefined;
+  /**
+   * Set when the verdict could not be EVALUATED rather than evaluated and found false.
+   *
+   * A file:line reads as a precise, well-attributed finding about that file. Attaching one to a
+   * reading that proved nothing sends the investigation into correct code: reported against a
+   * wedged Next.js dev server, where a route verdict named `components/.../header.tsx:53` and the
+   * reporter nearly filed "the header Sign Up link is broken" — the server was answering nothing at
+   * all, on every route.
+   *
+   * Gated here rather than in the route oracle, because every producer of an inconclusive verdict
+   * has the same problem: a throttled tab, a superseded window, an unreadable locator. One guard
+   * where all of them route through.
+   */
+  inconclusive?: string | undefined;
 }): string | undefined {
   const own = evidenceSource(facts.evidence);
   if (own !== undefined) return own;
   if (facts.pass || declaresDom(facts.predicate)) return undefined;
+  // Nothing was proven and nobody could have proven it — so there is nothing to point at.
+  if (facts.inconclusive !== undefined) return undefined;
   return facts.lastActSource;
 }

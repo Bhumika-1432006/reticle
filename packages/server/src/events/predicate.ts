@@ -493,7 +493,9 @@ async function evaluatePredicateRaw(
     case PredicateKind.NET:
       return evalNet(events, predicate);
     case PredicateKind.ROUTE:
-      return evalRoute(events, predicate, session.url);
+      // `since` so an unanswered request already in flight before this window is not counted
+      // against the app — see unansweredIn.
+      return evalRoute(events, predicate, session.url, Math.max(since, predicateSince(predicate)));
     case PredicateKind.CONSOLE:
       return evalConsole(events, predicate);
     case PredicateKind.ANIMATION:
