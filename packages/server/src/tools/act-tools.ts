@@ -736,6 +736,9 @@ export const ACT_TOOLS: ToolDef[] = [
         const stillInFlight = inFlightRequestLabels(windowEvents);
         const decision = decideVerified({
           pass: verdict.pass,
+          // So the unread-body remedy can check it applies to THIS page. Threaded rather than
+          // looked up inside decideVerified, which is pure and has no session.
+          ...(session.sdkVersion === undefined ? {} : { sdkVersion: session.sdkVersion }),
           // The caller NAMED the consequence rather than defaulting to "wait for idle". A
           // declaration made before the action is what this tool sells, and idle-settlement was
           // overriding it — see `declaredConsequence`. An explicit `{ kind: "settled" }` is not a
