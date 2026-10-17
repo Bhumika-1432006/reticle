@@ -35,7 +35,7 @@ export function paginateQueryResult(
   const truncatedOnWire = total > elements.length;
 
   if (countOnly) {
-    const { elements: _dropped, ...rest } = record;
+    const { elements: _dropped, count: _countDropped, ...rest } = record;
     // When the scope did not resolve, 0 is not a count — no subtree was searched. Omit count so a
     // caller reading only that field does not conclude the element is absent from the page.
     if (true === record['scopeMissing']) return rest;
