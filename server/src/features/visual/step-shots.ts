@@ -47,10 +47,7 @@ export interface ShotOptions {
 /**
  * What a tool result carries: where the picture is and how it was taken, or why there is none.
  *
- * `pending: true` means the path is reserved and the capture has started, but the file may not
- * yet be on disk. This happens on the fast path when a prior capture on the same tab proved the
- * source works: the step does not wait for the write to land. Copy the file only after a short
- * delay, or poll until it appears.
+ * `pending: true` means the path is reserved and the capture has started, but the file may not yet be on disk. This happens on the fast path when a prior capture on the same tab proved the source works: the step does not wait for the write to land. Copy the file only after a short delay, or poll until it appears.
  */
 export type ScreenshotField =
   | { path: string; source: ScreenshotSource; pending?: true }
