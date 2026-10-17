@@ -50,8 +50,7 @@ export interface ShotOptions {
  * `pending: true` means the path is reserved and the capture has started, but the file may not yet be on disk. This happens on the fast path when a prior capture on the same tab proved the source works: the step does not wait for the write to land. Copy the file only after a short delay, or poll until it appears.
  */
 export type ScreenshotField =
-  | { path: string; source: ScreenshotSource; pending?: true }
-  | { error: string };
+  { path: string; source: ScreenshotSource; pending?: true } | { error: string };
 
 const JPEG_EXT = '.jpg';
 const TOOL_PREFIX = /^reticle_/;
