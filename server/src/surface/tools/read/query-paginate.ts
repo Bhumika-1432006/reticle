@@ -36,6 +36,9 @@ export function paginateQueryResult(
 
   if (countOnly) {
     const { elements: _dropped, ...rest } = record;
+    // When the scope did not resolve, 0 is not a count — no subtree was searched. Omit count so a
+    // caller reading only that field does not conclude the element is absent from the page.
+    if (true === record['scopeMissing']) return rest;
     // `truncated` here means "the sample was capped in transit", not "the count is approximate" —
     // the count is exact. It is surfaced so the agent knows not to re-derive anything from a sample.
     return truncatedOnWire ? { ...rest, count: total, truncated: true } : { ...rest, count: total };
