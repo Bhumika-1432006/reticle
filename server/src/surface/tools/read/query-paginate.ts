@@ -34,11 +34,15 @@ export function paginateQueryResult(
   const total = 'number' === typeof counted ? counted : elements.length;
   const truncatedOnWire = total > elements.length;
 
+  // When the scope did not resolve, 0 is not a count — no subtree was searched. Omit count so
+  // a caller reading only that field does not conclude the element is absent from the page.
+  if (true === record['scopeMissing']) {
+    const { count: _dropped, elements: _els, ...rest } = record;
+    return countOnly ? rest : { ...rest, elements };
+  }
+
   if (countOnly) {
-    const { elements: _dropped, count: _countDropped, ...rest } = record;
-    // When the scope did not resolve, 0 is not a count — no subtree was searched. Omit count so a
-    // caller reading only that field does not conclude the element is absent from the page.
-    if (true === record['scopeMissing']) return rest;
+    const { elements: _dropped, ...rest } = record;
     // `truncated` here means "the sample was capped in transit", not "the count is approximate" —
     // the count is exact. It is surfaced so the agent knows not to re-derive anything from a sample.
     return truncatedOnWire ? { ...rest, count: total, truncated: true } : { ...rest, count: total };

@@ -123,6 +123,17 @@ describe('paginateQueryResult', () => {
     expect(r.scopeMissing).toBe(true);
   });
 
+  it('omits count when scopeMissing even without count_only — 0 misleads a plain find too', () => {
+    const r = paginateQueryResult(
+      { elements: [], count: 0, scopeMissing: true },
+      undefined,
+      false,
+    ) as { count?: number; elements?: unknown[]; scopeMissing?: boolean };
+    expect('count' in r).toBe(false);
+    expect(r.scopeMissing).toBe(true);
+    expect(Array.isArray(r.elements)).toBe(true);
+  });
+
   it('count_only preserves count when scope resolved normally', () => {
     const r = paginateQueryResult({ elements: [], count: 0 }, undefined, true) as {
       count?: number;
