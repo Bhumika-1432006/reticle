@@ -37,33 +37,50 @@ export const ARIA_HIDDEN_NOTE =
   'text is inside an aria-hidden subtree — drawn on screen but excluded from the accessible tree';
 
 /**
- * HTML element names that are never used as ARIA roles by Reticle's own `getRole` implementation.
- * These tags map to `generic` (or another implicit role) so a query like `{ role: "iframe" }` will
- * always return zero results. The set is intentionally small: only the common cases where an
- * element name looks like a role but is not one.
+ * HTML tag names mapped to the ARIA role that `getRole` gives them. A query like `{ role: "iframe" }`
+ * always returns zero results because `iframe` is a tag, not a role. The map names the correct role
+ * so the hint can say exactly what to use instead.
  */
-export const HTML_TAG_NOT_AN_ARIA_ROLE = new Set([
-  'iframe',
-  'div',
-  'span',
-  'video',
-  'audio',
-  'canvas',
-  'embed',
-  'object',
-  'script',
-  'style',
-  'template',
-  'slot',
+export const HTML_TAG_TO_ARIA_ROLE = new Map([
+  ['iframe', 'generic'],
+  ['div', 'generic'],
+  ['span', 'generic'],
+  ['video', 'generic'],
+  ['audio', 'generic'],
+  ['canvas', 'generic'],
+  ['embed', 'generic'],
+  ['object', 'generic'],
+  ['input', 'textbox'],
+  ['textarea', 'textbox'],
+  ['a', 'link'],
+  ['select', 'combobox'],
+  ['nav', 'navigation'],
+  ['li', 'listitem'],
+  ['ul', 'list'],
+  ['ol', 'list'],
+  ['p', 'paragraph'],
+  ['h1', 'heading'],
+  ['h2', 'heading'],
+  ['h3', 'heading'],
+  ['h4', 'heading'],
+  ['h5', 'heading'],
+  ['h6', 'heading'],
+  ['header', 'banner'],
+  ['footer', 'contentinfo'],
+  ['aside', 'complementary'],
+  ['section', 'region'],
 ]);
 
 /**
- * When the query's role is a raw HTML tag name that `getRole` never returns as a role, suggest
- * the correct ARIA role to use instead.
+ * When the query's role is a raw HTML tag name, name the correct ARIA role to use instead.
  */
 function describeUnreachableRole(role: string | undefined): string | undefined {
-  if (role === undefined || !HTML_TAG_NOT_AN_ARIA_ROLE.has(role.toLowerCase())) return undefined;
-  return `'${role}' is not an ARIA role — <${role}> elements have role 'generic'; try { role: 'generic' } with a name or title, or use a testid`;
+  const ariaRole = role === undefined ? undefined : HTML_TAG_TO_ARIA_ROLE.get(role.toLowerCase());
+  if (ariaRole === undefined) return undefined;
+  if (ariaRole === 'generic') {
+    return `'${role}' is not an ARIA role — <${role}> elements have role 'generic'; try { role: 'generic' } with a name or title, or use a testid`;
+  }
+  return `'${role}' is not an ARIA role — <${role}> elements have role '${ariaRole}'; try { role: '${ariaRole}' }`;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { ElementState } from '@reticlehq/core';
 
-import { ARIA_HIDDEN_NOTE, evalElement, HTML_TAG_NOT_AN_ARIA_ROLE } from './predicate-element.js';
+import { ARIA_HIDDEN_NOTE, evalElement, HTML_TAG_TO_ARIA_ROLE } from './predicate-element.js';
 import type { PredicateSession } from './predicate-session.js';
 
 const session: PredicateSession = {
@@ -289,22 +289,27 @@ it('does not blame aria-hidden when a visible element exists in the wrong state 
   expect(result.failureReason).not.toContain(ARIA_HIDDEN_NOTE);
 });
 
-it('tells the agent that iframe is not an ARIA role and suggests generic (#1696)', async () => {
-  // <iframe> maps to role 'generic' in Reticle's getRole implementation. A query for
-  // { role: 'iframe' } will always return zero results with no hint about why.
+it('tells the agent that iframe is not an ARIA role and names the correct role (#1696)', async () => {
   const page = pageWith(() => undefined);
   const result = await evalElement(page, { role: 'iframe' }, undefined, false, true);
   expect(result.pass).toBe(false);
   expect(result.failureReason).toContain("'iframe' is not an ARIA role");
-  expect(result.failureReason).toContain("'generic'");
+  expect(result.failureReason).toContain("role 'generic'");
 });
 
-it('covers every tag in HTML_TAG_NOT_AN_ARIA_ROLE with the unreachable-role hint', async () => {
-  // Guards against the set drifting without the message being updated.
-  for (const tag of HTML_TAG_NOT_AN_ARIA_ROLE) {
-    const page = pageWith(() => undefined);
-    const result = await evalElement(page, { role: tag }, undefined, false, true);
-    expect(result.pass).toBe(false);
-    expect(result.failureReason).toContain('is not an ARIA role');
-  }
+it('names the correct non-generic role when the tag maps to one (#1696)', async () => {
+  const page = pageWith(() => undefined);
+  const result = await evalElement(page, { role: 'input' }, undefined, false, true);
+  expect(result.pass).toBe(false);
+  expect(result.failureReason).toContain("'input' is not an ARIA role");
+  expect(result.failureReason).toContain("role 'textbox'");
+});
+
+it('HTML_TAG_TO_ARIA_ROLE covers the common mistakes and no non-rendered tags', () => {
+  expect(HTML_TAG_TO_ARIA_ROLE.has('script')).toBe(false);
+  expect(HTML_TAG_TO_ARIA_ROLE.has('style')).toBe(false);
+  expect(HTML_TAG_TO_ARIA_ROLE.has('template')).toBe(false);
+  expect(HTML_TAG_TO_ARIA_ROLE.has('iframe')).toBe(true);
+  expect(HTML_TAG_TO_ARIA_ROLE.get('input')).toBe('textbox');
+  expect(HTML_TAG_TO_ARIA_ROLE.get('nav')).toBe('navigation');
 });
