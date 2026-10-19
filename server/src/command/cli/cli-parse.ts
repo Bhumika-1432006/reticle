@@ -825,6 +825,17 @@ export function parseCliArgs(
       // The first non-flag arg is the url (optional — omitting reuses a connected tab).
       const url = rest.find((a) => !a.startsWith('--') && a !== String(port));
       const navigate = rest.includes(NAVIGATE_FLAG);
+      for (const arg of rest) {
+        if (!arg.startsWith('--')) continue;
+        if (arg === PORT_FLAG || arg === NAVIGATE_FLAG) continue;
+        if (arg === '--storage-state' || arg === '--headed' || arg === '--timeout') {
+          return {
+            kind: 'error',
+            message: `${arg} is not a flag for \`open\`. Use \`verify ${arg}\` to drive the url with that option, or \`reticle_lease\` with seedStorage.`,
+          };
+        }
+        return unknownArgument(arg);
+      }
       return url !== undefined
         ? { kind: 'open', port, url, navigate }
         : { kind: 'open', port, navigate };
