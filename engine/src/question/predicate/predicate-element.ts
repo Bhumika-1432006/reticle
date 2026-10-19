@@ -287,6 +287,33 @@ export async function evalElement(
     };
   }
 
+  // HTML tag names that look like ARIA roles but that getRole() never returns — they map to `generic`
+  // or another role. A query for `{ role: "iframe" }` never matches; the failure says "no element
+  // matched" and the agent retries the same broken query. Name the actual role to use instead.
+  const TAG_TO_ROLE: Readonly<Record<string, string>> = {
+    iframe: 'generic',
+    div: 'generic',
+    span: 'generic',
+    video: 'generic',
+    audio: 'generic',
+    canvas: 'generic',
+    figure: 'generic',
+  };
+  if (query.role !== undefined && Object.prototype.hasOwnProperty.call(TAG_TO_ROLE, query.role)) {
+    const actualRole = TAG_TO_ROLE[query.role] as string;
+    const nameHint =
+      query.name !== undefined
+        ? ` with name '${query.name}'`
+        : ' — use name or testid to narrow it';
+    return {
+      pass: false,
+      failureReason: `'${query.role}' is not a role Reticle reports; use role: '${actualRole}'${nameHint}`,
+      observed: `no element with role '${query.role}' (the tag maps to role '${actualRole}')`,
+      expected: `an element with role '${actualRole}'${query.name !== undefined ? ` named '${query.name}'` : ''}`,
+      assertion: 'element.present',
+    };
+  }
+
   // The near-miss diagnostic below costs one or two EXTRA MATCH round-trips. It only enriches a FAILED
   // verdict, and a wait loop's interim rechecks read nothing but `pass` — so on the poll path (diagnose
   // false) skip straight to the plain fail. Under an event flood a role+name element wait was firing

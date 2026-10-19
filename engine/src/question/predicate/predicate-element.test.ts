@@ -288,3 +288,29 @@ it('does not blame aria-hidden when a visible element exists in the wrong state 
   expect(result.pass).toBe(false);
   expect(result.failureReason).not.toContain(ARIA_HIDDEN_NOTE);
 });
+
+const noMatchSession: PredicateSession = {
+  ...session,
+  command: () =>
+    Promise.resolve({
+      kind: 'command_result' as const,
+      id: 'x',
+      ok: true,
+      result: {
+        matched: false,
+        count: 0,
+        elements: [],
+        hint: { route: '/', presentTestids: [], presentRegions: [], knownEmptyState: false },
+      },
+    }),
+};
+
+it('says iframe is not a role and names the role to use (#1696)', async () => {
+  const result = await evalElement(noMatchSession, { role: 'iframe' }, undefined, false, true);
+  expect(result.pass).toBe(false);
+  expect(result.failureReason).toContain('iframe');
+  expect(result.failureReason).toContain('generic');
+  expect(result.failureReason).not.toBe(
+    `no element matched ${JSON.stringify({ role: 'iframe' })}`,
+  );
+});
