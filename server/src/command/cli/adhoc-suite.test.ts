@@ -109,7 +109,7 @@ describe('a saved-flow suite against the running daemon', () => {
 
   it('narrows the suite when labels were named', async () => {
     const { calls } = await run({ status: 'pass', total: 1 }, { select: ['smoke'] });
-    expect(calls[0]?.args).toEqual({ action: 'flows', select: ['smoke'] });
+    expect(calls[0]?.args).toEqual({ action: 'flows', labels: ['smoke'] });
   });
 
   it('pins a tab when one was named, so a second open page is not graded instead', async () => {
