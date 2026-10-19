@@ -299,10 +299,20 @@ it('tells the agent that iframe is not an ARIA role and names the correct role (
 
 it('names the correct non-generic role when the tag maps to one (#1696)', async () => {
   const page = pageWith(() => undefined);
-  const result = await evalElement(page, { role: 'input' }, undefined, false, true);
+  const result = await evalElement(page, { role: 'nav' }, undefined, false, true);
   expect(result.pass).toBe(false);
-  expect(result.failureReason).toContain("'input' is not an ARIA role");
-  expect(result.failureReason).toContain("role 'textbox'");
+  expect(result.failureReason).toContain("'nav' is not an ARIA role");
+  expect(result.failureReason).toContain("role 'navigation'");
+});
+
+it('names the condition for section whose role depends on whether it is named (#1696)', async () => {
+  const page = pageWith(() => undefined);
+  const result = await evalElement(page, { role: 'section' }, undefined, false, true);
+  expect(result.pass).toBe(false);
+  expect(result.failureReason).toContain("'section' is not an ARIA role");
+  expect(result.failureReason).toContain('named');
+  expect(result.failureReason).toContain("'region'");
+  expect(result.failureReason).toContain("'generic'");
 });
 
 it('HTML_TAG_TO_ARIA_ROLE covers the common mistakes and no non-rendered tags', () => {

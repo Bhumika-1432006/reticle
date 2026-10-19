@@ -73,11 +73,33 @@ export const HTML_TAG_TO_ARIA_ROLE = new Map([
 
 /**
  * When the query's role is a raw HTML tag name, name the correct ARIA role to use instead.
+ * Context-dependent tags state the condition so the hint is never wrong.
  */
 function describeUnreachableRole(role: string | undefined): string | undefined {
-  const ariaRole = role === undefined ? undefined : HTML_TAG_TO_ARIA_ROLE.get(role.toLowerCase());
+  if (role === undefined) return undefined;
+  const tag = role.toLowerCase();
+  const ariaRole = HTML_TAG_TO_ARIA_ROLE.get(tag);
   if (ariaRole === undefined) return undefined;
-  if (ariaRole === 'generic') {
+  if ('section' === tag) {
+    return (
+      `'section' is not an ARIA role — ` +
+      `a named <section> (with aria-label, aria-labelledby, or title) has role 'region'; ` +
+      `an unnamed one has role 'generic'`
+    );
+  }
+  if ('a' === tag) {
+    return `'a' is not an ARIA role — <a> elements have role 'link' when they carry an href, otherwise 'generic'`;
+  }
+  if ('select' === tag) {
+    return `'select' is not an ARIA role — <select> elements have role 'combobox', or 'listbox' when the multiple attribute is set`;
+  }
+  if ('input' === tag) {
+    return (
+      `'input' is not an ARIA role — <input> role depends on its type attribute: ` +
+      `'textbox' for text/email/url/password, 'checkbox', 'radio', 'button', or 'slider' for range`
+    );
+  }
+  if ('generic' === ariaRole) {
     return `'${role}' is not an ARIA role — <${role}> elements have role 'generic'; try { role: 'generic' } with a name or title, or use a testid`;
   }
   return `'${role}' is not an ARIA role — <${role}> elements have role '${ariaRole}'; try { role: '${ariaRole}' }`;
