@@ -418,6 +418,16 @@ function parseServeFlags(
   // honoured (#687).
   if (!http && httpPort !== undefined) return requiresHttp(HTTP_PORT_FLAG);
   if (!http && httpToken !== undefined) return requiresHttp(HTTP_TOKEN_FLAG);
+  if (http && httpPort !== undefined && httpPort === port) {
+    return {
+      kind: 'error',
+      message:
+        `${HTTP_PORT_FLAG} ${httpPort} is the bridge port. ` +
+        `MCP is already served on the bridge port (${port}). ` +
+        `${HTTP_FLAG} starts the verify endpoint on a separate port — ` +
+        `pick a different port with ${HTTP_PORT_FLAG}.`,
+    };
+  }
   return {
     kind: 'ok',
     port,
