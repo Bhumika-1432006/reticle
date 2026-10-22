@@ -949,3 +949,47 @@ describe('a RETICLE_CHROMIUM_PATH the daemon cannot launch', () => {
     expect(buildErrorPayload(message).recovery).toBe(RECOVERY.CHROMIUM_PATH);
   });
 });
+
+/**
+ * A lease navigation where nothing is listening at the URL. The message asks "is the app running?"
+ * but does not name the fix; a self-recovering analysis would miss the concrete next step (#1678).
+ */
+describe('a lease navigation to a URL where nothing is serving (#1678)', () => {
+  const refused =
+    'could not open http://localhost:3000 — is the app running there? (net::ERR_CONNECTION_REFUSED)';
+  const timedOut =
+    'could not open http://localhost:3000 — the page did not finish loading within 30 s (net::ERR_TIMED_OUT). If the app is running, a dev server compiling a route for the first time can take longer than that: retry the acquire. If it is not running, start it first.';
+  const certErr =
+    'could not open http://localhost:3000 — the browser refused its TLS certificate, which a self-signed or mkcert dev certificate gets. If it is your dev server, acquire again with ignoreHTTPSErrors: true to accept it for this lease (net::ERR_CERT_AUTHORITY_INVALID)';
+
+  it('refused: recovery names starting the app and acquiring again, no feedback ask', () => {
+    const payload = buildErrorPayload(refused);
+    expect(payload.recovery).toBe(RECOVERY.LEASE_NAV);
+    expect(payload.recovery).toMatch(/Start the app/i);
+    expect(payload.feedback).toBeUndefined();
+  });
+
+  it('refused: refusal reason is NOT_READY, not OTHER', () => {
+    expect(refusalReasonFor(refused)).toBe(RefusalReason.NOT_READY);
+  });
+
+  it('timed out: already self-recovering — no extra recovery hint and no feedback ask', () => {
+    const payload = buildErrorPayload(timedOut);
+    expect(payload.recovery).toBeUndefined();
+    expect(payload.feedback).toBeUndefined();
+  });
+
+  it('timed out: refusal reason is NOT_READY, not OTHER', () => {
+    expect(refusalReasonFor(timedOut)).toBe(RefusalReason.NOT_READY);
+  });
+
+  it('cert error: already self-recovering — no extra recovery hint and no feedback ask', () => {
+    const payload = buildErrorPayload(certErr);
+    expect(payload.recovery).toBeUndefined();
+    expect(payload.feedback).toBeUndefined();
+  });
+
+  it('cert error: refusal reason is NOT_READY, not OTHER', () => {
+    expect(refusalReasonFor(certErr)).toBe(RefusalReason.NOT_READY);
+  });
+});
