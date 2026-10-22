@@ -321,6 +321,13 @@ export function nextActionFor(facts: NextActionFacts): NoSessionNextAction {
   const ports = facts.listening.join(', ');
   const only = 1 === facts.listening.length ? facts.listening[0] : undefined;
   const where = '' === ports ? 'on a port this daemon did not scan' : `${ports} listening`;
+  // The dev script's own port outranks a lone listener when the two disagree: the port scan is
+  // machine-wide and may belong to any project, while the dev script names THIS project's port.
+  // Only applies when the dev port is not already listening — if it is, `only` already carries it.
+  const devTarget =
+    facts.dev?.port !== undefined && !facts.listening.includes(facts.dev.port)
+      ? facts.dev.port
+      : undefined;
 
   // A refusal against a project that IS initialised here. The daemon has the config, so this is not
   // a scope problem — the page reached the right daemon and presented a credential it would not
@@ -462,7 +469,11 @@ export function nextActionFor(facts: NextActionFacts): NoSessionNextAction {
     };
   }
 
-  if (only === undefined) {
+  // `devTarget` beats `only`: the dev script names this project's port; a lone listener may belong
+  // to any project. When the dev port is not serving yet, opening it will fail until the app starts,
+  // but opening an unrelated port would succeed for the wrong app (#1687).
+  const target = devTarget !== undefined ? devTarget : only;
+  if (target === undefined) {
     return {
       action: NoSessionAction.OPEN_APP,
       reason:
@@ -485,8 +496,8 @@ export function nextActionFor(facts: NextActionFacts): NoSessionNextAction {
   const neverConnected = true !== facts.previouslyConnected;
   return {
     action: NoSessionAction.OPEN_APP,
-    command: `${OPEN_COMMAND} ${LOCALHOST}:${String(only)}`,
-    port: only,
+    command: `${OPEN_COMMAND} ${LOCALHOST}:${String(target)}`,
+    port: target,
     reason: neverConnected
       ? 'this project is wired and something is listening on that port (it may not be this app), but no app has ever connected to ' +
         'this daemon — Reticle only ever sees a page a browser has LOADED, and nothing has loaded ' +
