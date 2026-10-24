@@ -20,12 +20,6 @@ import { asRecord, asString, asNumber } from '@reticlehq/core';
 import { appearanceDecision } from '@reticlehq/engine/window/appearance-budget.js';
 
 /**
- * Target fields the query engine reads as strings. A non-string value is silently dropped by
- * normalizeQueryArgs and broadens the query beyond what the caller asked for (#1777).
- */
-const TARGET_STRING_FIELDS = ['name', 'role', 'testid', 'text', 'label', 'placeholder', 'alt'] as const;
-
-/**
  * A press of Escape, Tab, or a modifier shortcut is a document key. Requiring a locator for it
  * forced a snapshot just to name an element the keystroke is not about.
  */
@@ -80,20 +74,8 @@ export async function resolveActTarget(
     return { kind: 'error', message: MISSING_ACT_TARGET };
   }
   const targetRecord = asRecord(target);
-  // Every field the query reads must be a string when present. A non-string
-  // value is silently dropped by normalizeQueryArgs, so the query matches more
-  // elements than the caller asked for — the wrong element may be acted on, or
-  // an ambiguity refusal fires with a misleading reason (#1777).
-  for (const field of TARGET_STRING_FIELDS) {
-    const v = targetRecord[field];
-    if (v !== undefined && typeof v !== 'string') {
-      return {
-        kind: 'error',
-        message: `target.${field} must be a string, got ${typeof v}`,
-      };
-    }
-  }
   const q = normalizeQueryArgs(targetRecord);
+  if (q instanceof Error) return { kind: 'error', message: q.message };
   /*
    * Look again while the step's own budget lasts, instead of once.
    *

@@ -7,7 +7,6 @@
  * QUERY path (ambiguity or missing target) instead of the type-check path.
  */
 import { describe, expect, it } from 'vitest';
-import { ActionType } from '@reticlehq/core';
 import type { Session } from '@/portal/session/session.js';
 import { resolveActTarget } from './act-target.js';
 
@@ -22,8 +21,7 @@ function sessionThatMustNotBeQueried(): Session {
 describe('resolveActTarget — non-string target fields', () => {
   it('refuses an object name before querying', async () => {
     const r = await resolveActTarget(sessionThatMustNotBeQueried(), {
-      action: ActionType.CLICK,
-      args: { target: { role: 'link', name: {} } },
+      target: { role: 'link', name: {} },
     });
     expect(r.kind).toBe('error');
     if (r.kind !== 'error') throw new Error('expected error');
@@ -33,8 +31,7 @@ describe('resolveActTarget — non-string target fields', () => {
 
   it('refuses a numeric name before querying', async () => {
     const r = await resolveActTarget(sessionThatMustNotBeQueried(), {
-      action: ActionType.CLICK,
-      args: { target: { role: 'button', name: 42 } },
+      target: { role: 'button', name: 42 },
     });
     expect(r.kind).toBe('error');
     if (r.kind !== 'error') throw new Error('expected error');
@@ -43,8 +40,7 @@ describe('resolveActTarget — non-string target fields', () => {
 
   it('refuses an array name before querying', async () => {
     const r = await resolveActTarget(sessionThatMustNotBeQueried(), {
-      action: ActionType.CLICK,
-      args: { target: { role: 'link', name: ['Learn'] } },
+      target: { role: 'link', name: ['Learn'] },
     });
     expect(r.kind).toBe('error');
     if (r.kind !== 'error') throw new Error('expected error');
@@ -55,8 +51,7 @@ describe('resolveActTarget — non-string target fields', () => {
     // A string name is valid; the refusal must not fire for it.
     // We do not query here — just check the early-return path does not trigger.
     const r = await resolveActTarget(sessionThatMustNotBeQueried(), {
-      action: ActionType.CLICK,
-      args: { target: { role: 'button', name: 'Save' } },
+      target: { role: 'button', name: 'Save' },
     }).catch((e: unknown) => ({ kind: 'threw' as const, e }));
     // Either the session threw (expected — we did not stub a real page) or it
     // returned an error from the query path, not from the type check.
