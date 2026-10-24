@@ -4,7 +4,7 @@
  * and re-exports this surface.
  */
 import { parseFeedbackArgs, type ParsedFeedback } from './cli-parse-feedback.js';
-import { parseVerifySuffix } from './cli-parse-verify.js';
+import { parseVerifySuffix, TIMEOUT_FLAG, STORAGE_STATE_FLAG } from './cli-parse-verify.js';
 import {
   HEADED_FLAG,
   PORT_FLAG,
@@ -828,10 +828,12 @@ export function parseCliArgs(
       for (const arg of rest) {
         if (!arg.startsWith('--')) continue;
         if (arg === PORT_FLAG || arg === NAVIGATE_FLAG) continue;
-        if (arg === '--storage-state' || arg === '--headed' || arg === '--timeout') {
+        if (arg === STORAGE_STATE_FLAG || arg === HEADED_FLAG || arg === TIMEOUT_FLAG) {
+          const seedNote =
+            arg === STORAGE_STATE_FLAG ? ', or `reticle_lease` with seedStorage' : '';
           return {
             kind: 'error',
-            message: `${arg} is not a flag for \`open\`. Use \`verify ${arg}\` to drive the url with that option, or \`reticle_lease\` with seedStorage.`,
+            message: `${arg} is not a flag for \`open\`. Use \`verify ${arg}\` to drive the url with that option${seedNote}.`,
           };
         }
         return unknownArgument(arg);
