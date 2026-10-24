@@ -439,11 +439,22 @@ export function nextActionFor(facts: NextActionFacts): NoSessionNextAction {
     };
   }
 
-  // `devTarget` beats `only`: the dev script names this project's port; a lone listener may belong
-  // to any project. When the dev port is not serving yet, opening it will fail until the app starts,
-  // but opening an unrelated port would succeed for the wrong app (#1687).
-  const target = devTarget !== undefined ? devTarget : only;
-  if (target === undefined) {
+  // The dev script names a port that is not yet listening: the app has not started. Do not open it —
+  // opening a port nothing serves gives the wrong error. Start the dev server instead (#1687).
+  if (devTarget !== undefined) {
+    const dev = facts.dev!;
+    const inApp = dev.directory === undefined ? '' : `cd ${dev.directory} && `;
+    return {
+      action: NoSessionAction.START_DEV_SERVER,
+      command: `${inApp}${dev.command}`,
+      port: devTarget,
+      reason:
+        `something is listening (${ports}) but this project's dev script targets port ${String(devTarget)}, ` +
+        `which is not among them — the app is probably not running on its own port. ` +
+        `Run the dev script in the background, then call reticle_session { action: "list" } again.`,
+    };
+  }
+  if (only === undefined) {
     return {
       action: NoSessionAction.OPEN_APP,
       reason:
@@ -466,8 +477,8 @@ export function nextActionFor(facts: NextActionFacts): NoSessionNextAction {
   const neverConnected = true !== facts.previouslyConnected;
   return {
     action: NoSessionAction.OPEN_APP,
-    command: `${OPEN_COMMAND} ${LOCALHOST}:${String(target)}`,
-    port: target,
+    command: `${OPEN_COMMAND} ${LOCALHOST}:${String(only)}`,
+    port: only,
     reason: neverConnected
       ? 'this project is wired and something is listening on that port (it may not be this app), but no app has ever connected to ' +
         'this daemon — Reticle only ever sees a page a browser has LOADED, and nothing has loaded ' +
