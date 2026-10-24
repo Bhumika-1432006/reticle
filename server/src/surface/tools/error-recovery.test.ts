@@ -28,6 +28,7 @@ import {
   MSG_HARNESS_UNCONFIRMED,
   MSG_NO_HARNESS_KEY,
 } from './harness-explore.js';
+import { navFailureMessage } from './lease-seed.js';
 
 describe('recoveryFor — every known error carries an actionable next move', () => {
   it('maps the no-session footgun to a concrete recovery', () => {
@@ -955,12 +956,18 @@ describe('a RETICLE_CHROMIUM_PATH the daemon cannot launch', () => {
  * but does not name the fix; a self-recovering analysis would miss the concrete next step (#1678).
  */
 describe('a lease navigation to a URL where nothing is serving (#1678)', () => {
-  const refused =
-    'could not open http://localhost:3000 — is the app running there? (net::ERR_CONNECTION_REFUSED)';
-  const timedOut =
-    'could not open http://localhost:3000 — the page did not finish loading within 30 s (net::ERR_TIMED_OUT). If the app is running, a dev server compiling a route for the first time can take longer than that: retry the acquire. If it is not running, start it first.';
-  const certErr =
-    'could not open http://localhost:3000 — the browser refused its TLS certificate, which a self-signed or mkcert dev certificate gets. If it is your dev server, acquire again with ignoreHTTPSErrors: true to accept it for this lease (net::ERR_CERT_AUTHORITY_INVALID)';
+  const refused = navFailureMessage(
+    'http://localhost:3000',
+    new Error('net::ERR_CONNECTION_REFUSED'),
+  );
+  const timedOut = navFailureMessage(
+    'http://localhost:3000',
+    new Error('Timeout 30000ms exceeded.\nnet::ERR_TIMED_OUT'),
+  );
+  const certErr = navFailureMessage(
+    'http://localhost:3000',
+    new Error('net::ERR_CERT_AUTHORITY_INVALID'),
+  );
 
   it('refused: recovery names starting the app and acquiring again, no feedback ask', () => {
     const payload = buildErrorPayload(refused);
