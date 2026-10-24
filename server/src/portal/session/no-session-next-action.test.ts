@@ -645,9 +645,9 @@ describe('wired project: dev script names a port, but a different port is listen
       listening: [5173],
       dev: { command: 'npm run dev', script: 'dev', port: 3000 },
     });
-    expect(next.action).toBe(NoSessionAction.OPEN_APP);
+    expect(next.action).toBe(NoSessionAction.START_DEV_SERVER);
     expect(next.port).toBe(3000);
-    expect(next.command).toContain(':3000');
+    expect(next.command).toContain('npm run dev');
     expect(next.command).not.toContain('5173');
   });
 
@@ -658,9 +658,9 @@ describe('wired project: dev script names a port, but a different port is listen
       listening: [5173, 8080],
       dev: { command: 'npm run dev', script: 'dev', port: 3000 },
     });
-    expect(next.action).toBe(NoSessionAction.OPEN_APP);
+    expect(next.action).toBe(NoSessionAction.START_DEV_SERVER);
     expect(next.port).toBe(3000);
-    expect(next.command).toContain(':3000');
+    expect(next.command).toContain('npm run dev');
   });
 
   it('when dev port IS the one listener, uses it normally', () => {
