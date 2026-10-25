@@ -471,8 +471,8 @@ export function nextActionFor(facts: NextActionFacts): NoSessionNextAction {
 
   // The dev script names a port that is not yet listening: the app has not started. Do not open it —
   // opening a port nothing serves gives the wrong error. Start the dev server instead (#1687).
-  if (devTarget !== undefined) {
-    const dev = facts.dev!;
+  if (devTarget !== undefined && facts.dev !== undefined) {
+    const dev = facts.dev;
     const inApp = dev.directory === undefined ? '' : `cd ${dev.directory} && `;
     return {
       action: NoSessionAction.START_DEV_SERVER,
