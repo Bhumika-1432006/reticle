@@ -836,8 +836,8 @@ export function parseCliArgs(
       const url = rest.find((a) => !a.startsWith('--') && a !== String(port));
       const navigate = rest.includes(NAVIGATE_FLAG);
       for (const arg of rest) {
-        if (!arg.startsWith('--')) continue;
-        if (arg === PORT_FLAG || arg === NAVIGATE_FLAG) continue;
+        if (!arg.startsWith('--')) { continue; }
+        if (arg === PORT_FLAG || arg === NAVIGATE_FLAG) { continue; }
         if (arg === STORAGE_STATE_FLAG || arg === HEADED_FLAG || arg === TIMEOUT_FLAG) {
           const seedNote =
             arg === STORAGE_STATE_FLAG ? ', or `reticle_lease` with seedStorage' : '';
